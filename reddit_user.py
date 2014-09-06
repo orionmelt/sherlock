@@ -12,7 +12,7 @@ headers = {
 }
 
 def printable_counter(sequence):
-	return [v for v,c in Counter([v for v,s in sequence]).most_common()]
+	return ["%s/%s" % (v,c) for v,c in Counter([v for v,s in sequence]).most_common()]
 
 class RedditUser:
 	username=None
@@ -97,14 +97,16 @@ class RedditUser:
 				body = child["data"]["body"].encode("ascii","ignore")
 				created_utc = child["data"]["created_utc"]
 				subreddit = child["data"]["subreddit"].encode("ascii","ignore").lower()
-				#permalink = child["data"]["link_url"].encode("ascii","ignore") + child["data"]["id"].encode("ascii","ignore")
-				permalink = child["data"]["id"].encode("ascii","ignore")
+				link_id = child["data"]["link_id"].encode("ascii","ignore").lower()[3:]
+				comment_id = child["data"]["id"].encode("ascii","ignore")
+				#permalink = "http://www.reddit.com/r/%s/comments/%s/_/%s" % (subreddit, link_id, child["data"]["id"].encode("ascii","ignore"))
+				comments.append({"body":body, "created_utc":created_utc, "subreddit":subreddit, "link_id":link_id, "comment_id":comment_id})
 
-				comments.append({"body":body, "created_utc":created_utc, "subreddit":subreddit, "permalink":permalink})
 			after = response["data"]["after"]
+
 			if after:
 				url = base_url + "&after=%s" % after
-				time.sleep(1)
+				time.sleep(3)
 			else:
 				more_comments = False
 
@@ -113,29 +115,36 @@ class RedditUser:
 	def get_submissions(self,limit=None):
 		return None
 
+	def permalink(self, comment):
+		subreddit = comment["subreddit"]
+		link_id = comment["link_id"]
+		comment_id = comment["comment_id"]
+		return "http://www.reddit.com/r/%s/comments/%s/_/%s" % (subreddit, link_id, comment_id)
+
 	def load_attributes(self, chunk, comment):
 		if chunk["kind"] == "possession" and chunk["nouns"]:
 			
 			noun = chunk["nouns"][0]
-			adjectives = " ".join(chunk["adjectives"])
-			nouns = " ".join(chunk["nouns"])
+			adjectives = (" ".join(chunk["adjectives"])).strip()
+			nouns = (" ".join(chunk["nouns"])).strip()
 
 			pet = extractor.pet_animal(noun)
 			family_member = extractor.family_member(noun)
 			relationship_partner = extractor.relationship_partner(noun)
 
 			if pet:
-				self.pets.append((pet, comment["permalink"]))
+				self.pets.append((pet, self.permalink(comment)))
 			elif family_member:
-				self.family_members.append((family_member, comment["permalink"]))
+				self.family_members.append((family_member, self.permalink(comment)))
 			elif relationship_partner:
-				self.relationship_partners.append((relationship_partner, comment["permalink"]))
+				self.relationship_partners.append((relationship_partner, self.permalink(comment)))
 			else:
-				self.other_possessions.append((adjectives+" "+nouns, comment["permalink"]))
+				self.other_possessions.append(((adjectives+" "+nouns).strip(), self.permalink(comment)))
 
 		elif chunk["kind"] == "action":
-			adjectives = " ".join(chunk["adjectives"])
-			nouns = " ".join(chunk["nouns"]).strip()
+
+			adjectives = (" ".join(chunk["adjectives"])).strip()
+			nouns = (" ".join(chunk["nouns"]).strip()).strip()
 
 			# I am/was ...
 			if len(chunk["verbs"])==1 and "be" in chunk["verbs"] and not chunk["prepositions"]:
@@ -146,35 +155,32 @@ class RedditUser:
 						orientation = extractor.orientation(noun)
 
 						if gender:
-							self.genders.append((gender, comment["permalink"]))
+							self.genders.append((gender, self.permalink(comment)))
 						elif orientation:
-							self.orientations.append((orientation,comment["permalink"]))					
+							self.orientations.append((orientation,self.permalink(comment)))					
 						else:
-							self.other_attributes.append((adjectives+" "+nouns, comment["permalink"]))
+							self.other_attributes.append(((adjectives+" "+nouns).strip(), self.permalink(comment)))
 
 			# I live(d) in ...
 			elif "live" in chunk["verbs"] and "in" in chunk["prepositions"] and nouns:
-				self.live_in.append((nouns, comment["permalink"]))
+				self.live_in.append((nouns, self.permalink(comment)))
 			
 			# I grew up in ...
 			elif "grow" in chunk["verbs"] and "up" in chunk["adverbs"] and "in" in chunk["prepositions"] and nouns:
-				self.grew_up_in.append((nouns, comment["permalink"]))
+				self.grew_up_in.append((nouns, self.permalink(comment)))
 
 			elif "love" in chunk["verbs"] and nouns:
-				self.loves.append((adjectives+" "+nouns, comment["permalink"]))				
+				self.loves.append(((adjectives+" "+nouns).strip(), self.permalink(comment)))
 
-			else:
-				self.other_actions.append(
-					(
-						(
-							" ".join(chunk["actual_verbs"]) + " " + 
-							" ".join(chunk["prepositions"]) + " " + 
-							" ".join(chunk["nouns"])
-						).strip(), 
-
-						comment["permalink"]
-					)
-				)
+			elif nouns:
+				actual_verbs = (" ".join(chunk["actual_verbs"])).strip()
+				prepositions = (" ".join(chunk["prepositions"])).strip()
+				
+				other_actions = ((actual_verbs+" "+prepositions).strip() + " " + nouns).strip()
+				self.other_actions.append((other_actions, self.permalink(comment)))
+				#print comment["body"]
+				#print chunk
+				#print other_actions
 
 	def derive_attributes(self):
 		if not self.genders and "wife" in [v for v,s in self.relationship_partners]:
@@ -182,6 +188,7 @@ class RedditUser:
 		elif not self.genders and "husband" in [v for v,s in self.relationship_partners]:
 			self.genders.append(("female","derived"))
 
+		'''
 		for cs,_ in Counter([v for v,s in self.commented_subreddits]).most_common():
 			subreddit = ([s for s in subreddits if s["name"]==cs] or [None])[0]
 			if subreddit:
@@ -193,11 +200,23 @@ class RedditUser:
 					self.hobbies.append((subreddit["i3"] or subreddit["i2"], "derived"))
 				else:
 					self.interests.append(subreddit["i3"] or subreddit["i2"] or subreddit["i1"])
+		'''
 
 	def process_comment(self,comment):
-		self.commented_subreddits.append((comment["subreddit"],comment["permalink"]))
+		self.commented_subreddits.append((comment["subreddit"],self.permalink(comment)))
 
-		if comment["subreddit"] in ignore_subs:
+		subreddit = ([s for s in subreddits if s["name"]==comment["subreddit"]] or [None])[0]
+		if subreddit:
+			if subreddit["i1"].lower()=="location":
+				self.locations.append((subreddit["i3"], "derived"))
+			elif subreddit["i1"].lower()=="entertainment" and subreddit["i2"].lower()=="tv":
+				self.tv_shows.append((subreddit["i3"], "derived"))
+			elif subreddit["i1"].lower()=="hobbies":
+				self.hobbies.append((subreddit["i3"] or subreddit["i2"], "derived"))
+			else:
+				self.interests.append(subreddit["i3"] or subreddit["i2"] or subreddit["i1"])
+
+		if comment["subreddit"].lower() in ignore_subs:
 			return False
 
 		comment["body"] = self.sanitize_comment(comment)
@@ -217,18 +236,17 @@ class RedditUser:
 		self.derive_attributes()
 
 	def save_comments_to_file(self):
-		comments_file = csv.writer(open("data/ccmments_%s.csv" % self.username, "wb"), quoting=csv.QUOTE_ALL)
+		comments_file = csv.writer(open("data/comments_%s.csv" % self.username, "wb"), quoting=csv.QUOTE_ALL)
 
 		for comment in self.get_comments():
 			body = self.sanitize_comment(comment)
-			comments_file.writerow([comment["subreddit"], body, comment["permalink"], comment["created_utc"]])
+			comments_file.writerow([comment["subreddit"], body, comment["link_id"], comment["comment_id"], comment["created_utc"]])
 
 	def process_comments_from_file(self):
 		comments_file = csv.reader(open("data/comments_%s.csv" % self.username))
 		for line in comments_file:
-			(subreddit, body, permalink, created_utc) = line
-			comment = {"body":body, "created_utc":created_utc, "subreddit":subreddit.lower(), "permalink":permalink}
-
+			(subreddit, body, link_id, comment_id, created_utc) = line
+			comment = {"subreddit":subreddit.lower(), "body":body, "link_id":link_id, "comment_id":comment_id, "created_utc":created_utc}
 			self.process_comment(comment)
 
 		self.derive_attributes()
