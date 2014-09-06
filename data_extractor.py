@@ -12,6 +12,8 @@ ADJ="a"
 class DataExtractor:
 	substitutions = [
 		(r"\b(im|i'm)\b", "i am"),
+		(r"\b(id|i'd)\b", "i would"),
+		(r"\b(i'll)\b", "i will"),
 		(r"\bbf\b", "boyfriend"),
 		(r"\bgf\b", "girlfriend"),
 		(r"\byoure\b", "you are"),
@@ -26,7 +28,8 @@ class DataExtractor:
 		(r"\bgotta\b", "have to"),
 		(r"\bgonna\b", "going to"),
 		(r"\bwanna\b", "want to"),
-		(r"\bkinda\b", "kind of"),
+		(r"\b(kinda|kind of)\b", ""),
+		(r"\b(dunno|donno)\b", "do not know"),
 		(r"\b(cos|coz|cus|cuz)\b", "because"),
 		(r"\bfave\b", "favorite"),
 		(r"\bbtw\b", "by the way"),
@@ -36,18 +39,25 @@ class DataExtractor:
 		(r"\bwheres\b", "where is"),
 		(r"\[(.*?)\]\((.*?)\)", r"\1"), # Remove links from Markdown
 		(r"\"(.*?)\"", r""), # Remove text within quotes
+		(r"\.+?", r". "), # Remove ellipses
 	]
 
-	be_skip_words = ["were","sure","afraid","sorry","glad","happy","fine"]
+	skip_verbs 			= ["were", "think", "guess"]
+	skip_prepositions 	= ["that"]
+	skip_adjectives		= ["sure","glad","happy","afraid","sorry"]
 
 	grammar = r"""
-	  MY_ADJ_NOUN: 
-	        {<PRP\$>+<JJ>*<NN.*>+}
-	  I_VERB_IN_ADJ_NOUN:
-	  		{<PRP>+<V.*>*<RP>*<IN>*<DT>*<RB.*>*<JJ>*(<NN.*>*|<CD>*)}
-	  NP:
-	        {<MY_ADJ_NOUN>}
-	        {<I_VERB_IN_ADJ_NOUN>}
+	  _VP:	
+	  		{<RB.*>*<V.*>+<RB.*>*}			# adverb* verb adverb* (really think / strongly suggest / look intensely)
+	  _N:
+	  		{<DT>*<JJ>*<NN.*>+}				# determiner adjective noun(s) (a beautiful house / the strongest fighter)
+	  P1: 
+	        {<PRP\$><_N>}					# My adjective noun/s (My awesome phone)
+	  P2:
+	  		{<PRP><_VP><IN>*<_N>}			# I verb in* adjective* noun (I am a great chef / I like cute animals / I work in beautiful* New York / I live in the suburbs)
+	  P:
+	        {<P1>}
+	        {<P2>}
 	"""
 	chunker = RegexpParser(grammar)
 
@@ -59,11 +69,6 @@ class DataExtractor:
 
 	def normalize(self, word,kind="n"):
 		return Word(word).lemmatize(kind).lower()
-
-	def leaves(self, tree):
-		"""Finds NP (noun phrase) leaf nodes of a chunk tree."""
-		for subtree in tree.subtrees(filter = lambda t: t.node=='NP'):
-			yield subtree.leaves()
 
 	def pet_animal(self, word):
 		if re.match(r"\b(dog|cat|hamster|fish|pig|snake|rat|parrot)\b",word):
@@ -108,14 +113,19 @@ class DataExtractor:
 
 		for sentence in blob.sentences:
 			
-			if not sentence.tags:
+			if not sentence.tags or not re.search(r"\b(i|my)\b",str(sentence),re.I):
 				continue
 
 			tree = self.chunker.parse(sentence.tags)
 
-			for phrase in self.leaves(tree):
-				
-				if any(word in self.be_skip_words for word in [w for w,t in phrase if (t.startswith("V") or t == "JJ")]):
+			for subtree in tree.subtrees(filter = lambda t: t.node in ['P1','P2']):
+				phrase = subtree.leaves()
+				phrase_type = subtree.node
+
+				if not any(x in [("i","PRP"), ("my","PRP$")] for x in [(w.lower(),t) for w,t in phrase]) or \
+				   (phrase_type=="P2" and any(word in self.skip_verbs for word in [w for w,t in phrase if t.startswith("V")])) or \
+				   (phrase_type=="P2" and any(word in self.skip_prepositions for word in [w for w,t in phrase if t=="IN"])) or \
+				   (phrase_type=="P2" and any(word in self.skip_adjectives for word in [w for w,t in phrase if t=="JJ"])):
 					continue
 
 				pronouns = []
@@ -127,6 +137,7 @@ class DataExtractor:
 				nouns = []
 				cardinals = []
 				# TODO - Handle proper nouns?
+				# TODO - Default POS tagger tags "love" as NN, what can we do about this?
 
 				for w,t in phrase:
 					if t.startswith("PRP"):
@@ -134,14 +145,17 @@ class DataExtractor:
 					elif t.startswith("V"):
 						verbs.append(self.normalize(w,VERB))
 						actual_verbs.append(w.lower())
-					elif t == "RP":
+					elif t.startswith("RB"):
 						adverbs.append(self.normalize(w,ADV))
 					elif t == "IN":
 						prepositions.append(w.lower())
 					elif t == "JJ":
 						adjectives.append(self.normalize(w,ADJ))
 					elif t.startswith("N"):
-						nouns.append(w.lower())
+						if phrase_type == "P1":
+							nouns.append(self.normalize(w,NOUN))
+						elif phrase_type == "P2":
+							nouns.append(w.lower())
 					elif t == "CD":
 						cardinals.append(w.lower())
 				
@@ -162,7 +176,7 @@ class DataExtractor:
 						"adjectives":adjectives, 
 						"nouns":nouns,
 						"cardinals":cardinals
-					})	
+					})
 		
 		return chunks
 
