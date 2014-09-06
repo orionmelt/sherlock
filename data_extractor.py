@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
-from nltk import RegexpParser, word_tokenize, pos_tag, data, WordNetLemmatizer
-from nltk.tokenize import sent_tokenize
+from nltk import RegexpParser
+from textblob import TextBlob, Word
 import re
 
 NOUN="n"
@@ -15,14 +15,14 @@ class DataExtractor:
 		(r"\bbf\b", "boyfriend"),
 		(r"\bgf\b", "girlfriend"),
 		(r"\byoure\b", "you are"),
-		(r"\bdont\b", "do not"),
-		(r"\bdidnt\b", "did not"),
-		(r"\bwasnt\b", "was not"),
-		(r"\bisnt\b", "is not"),
-		(r"\barent\b", "are not"),
-		(r"\bwerent\b", "were not"),
-		(r"\bhavent\b", "have not"),
-		(r"\bcouldnt\b", "could not"),
+		(r"\b(dont|don't)\b", "do not"),
+		(r"\b(didnt|didn't)\b", "did not"),
+		(r"\b(wasnt|wasn't)\b", "was not"),
+		(r"\b(isnt|isn't)\b", "is not"),
+		(r"\b(arent|aren't)\b", "are not"),
+		(r"\b(werent|weren't)\b", "were not"),
+		(r"\b(havent|haven't)\b", "have not"),
+		(r"\b(couldnt|couldn't)\b", "could not"),
 		(r"\bgotta\b", "have to"),
 		(r"\bgonna\b", "going to"),
 		(r"\bwanna\b", "want to"),
@@ -35,6 +35,7 @@ class DataExtractor:
 		(r"\btheres\b", "there is"),
 		(r"\bwheres\b", "where is"),
 		(r"\[(.*?)\]\((.*?)\)", r"\1"), # Remove links from Markdown
+		(r"\"(.*?)\"", r""), # Remove text within quotes
 	]
 
 	be_skip_words = ["were","sure","afraid","sorry","glad","happy","fine"]
@@ -49,7 +50,6 @@ class DataExtractor:
 	        {<I_VERB_IN_ADJ_NOUN>}
 	"""
 	chunker = RegexpParser(grammar)
-	lemmatizer = WordNetLemmatizer()
 
 	def clean_up(self, text):
 		#TODO - ignore text within quotes, remove [] and ()
@@ -58,7 +58,7 @@ class DataExtractor:
 		return text
 
 	def normalize(self, word,kind="n"):
-		return self.lemmatizer.lemmatize(word,kind).lower()
+		return Word(word).lemmatize(kind).lower()
 
 	def leaves(self, tree):
 		"""Finds NP (noun phrase) leaf nodes of a chunk tree."""
@@ -103,17 +103,17 @@ class DataExtractor:
 
 	def extract_chunks(self, text):
 		chunks = []
-		sentences = sent_tokenize(text)
+		text = self.clean_up(text)
+		blob = TextBlob(text)
 
-		for sentence in sentences:
-			sentence = self.clean_up(sentence)
-			pos_tokens = pos_tag(word_tokenize(sentence))
+		for sentence in blob.sentences:
+			
+			if not sentence.tags:
+				continue
 
-			tree = self.chunker.parse(pos_tokens)
-
+			tree = self.chunker.parse(sentence.tags)
 
 			for phrase in self.leaves(tree):
-
 				
 				if any(word in self.be_skip_words for word in [w for w,t in phrase if (t.startswith("V") or t == "JJ")]):
 					continue
@@ -168,4 +168,4 @@ class DataExtractor:
 
 	@staticmethod
 	def test_sentence(sentence):
-		print pos_tag(word_tokenize(sentence))
+		print TextBlob(sentence).tags
