@@ -12,3 +12,7 @@ venv
 # Ignore data files
 *.csv
 data/
+
+# Ignore text files
+*.txt
+
