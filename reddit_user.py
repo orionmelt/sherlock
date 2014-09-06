@@ -142,65 +142,51 @@ class RedditUser:
 				self.other_possessions.append(((adjectives+" "+nouns).strip(), self.permalink(comment)))
 
 		elif chunk["kind"] == "action":
+			
+			# TODO - Handle negative actions (such as I am not...), but for now:
+			if "not" in chunk["adverbs"]:
+				return
 
 			adjectives = (" ".join(chunk["adjectives"])).strip()
 			nouns = (" ".join(chunk["nouns"]).strip()).strip()
 
 			# I am/was ...
-			if len(chunk["verbs"])==1 and "be" in chunk["verbs"] and not chunk["prepositions"]:
-				
-				if chunk["nouns"]:
-					for noun in chunk["nouns"]:
-						gender = extractor.gender(noun)
-						orientation = extractor.orientation(noun)
-
-						if gender:
-							self.genders.append((gender, self.permalink(comment)))
-						elif orientation:
-							self.orientations.append((orientation,self.permalink(comment)))					
-						else:
-							self.other_attributes.append(((adjectives+" "+nouns).strip(), self.permalink(comment)))
+			if len(chunk["verbs"])==1 and "be" in chunk["verbs"] and not chunk["prepositions"] and chunk["nouns"]:
+				for noun in chunk["nouns"]:
+					gender = extractor.gender(noun)
+					orientation = extractor.orientation(noun)
+					if gender:
+						self.genders.append((gender, self.permalink(comment)))
+					elif orientation:
+						self.orientations.append((orientation,self.permalink(comment)))					
+					elif not noun.endswith("ing") and "am" in chunk["actual_verbs"]: # Ignore gerunds for now, and include only "am" phrases
+						self.other_attributes.append(((adjectives+" "+nouns).strip(), self.permalink(comment)))
 
 			# I live(d) in ...
 			elif "live" in chunk["verbs"] and "in" in chunk["prepositions"] and nouns:
 				self.live_in.append((nouns, self.permalink(comment)))
 			
 			# I grew up in ...
-			elif "grow" in chunk["verbs"] and "up" in chunk["adverbs"] and "in" in chunk["prepositions"] and nouns:
+			elif "grow" in chunk["verbs"] and "up" in chunk["prepositions"] and "in" in chunk["prepositions"] and nouns:
 				self.grew_up_in.append((nouns, self.permalink(comment)))
 
-			elif "love" in chunk["verbs"] and nouns:
+			elif len(chunk["verbs"])==1 and "love" in chunk["verbs"] and nouns:
 				self.loves.append(((adjectives+" "+nouns).strip(), self.permalink(comment)))
 
 			elif nouns:
+				verbs = (" ".join(chunk["verbs"])).strip()
 				actual_verbs = (" ".join(chunk["actual_verbs"])).strip()
 				prepositions = (" ".join(chunk["prepositions"])).strip()
-				
-				other_actions = ((actual_verbs+" "+prepositions).strip() + " " + nouns).strip()
+				#other_actions = ((actual_verbs+" "+prepositions).strip() + " " + nouns).strip()
+				other_actions = verbs
 				self.other_actions.append((other_actions, self.permalink(comment)))
-				#print comment["body"]
-				#print chunk
-				#print other_actions
+
 
 	def derive_attributes(self):
 		if not self.genders and "wife" in [v for v,s in self.relationship_partners]:
 			self.genders.append(("male","derived"))
 		elif not self.genders and "husband" in [v for v,s in self.relationship_partners]:
 			self.genders.append(("female","derived"))
-
-		'''
-		for cs,_ in Counter([v for v,s in self.commented_subreddits]).most_common():
-			subreddit = ([s for s in subreddits if s["name"]==cs] or [None])[0]
-			if subreddit:
-				if subreddit["i1"].lower()=="location":
-					self.locations.append((subreddit["i3"], "derived"))
-				elif subreddit["i1"].lower()=="entertainment" and subreddit["i2"].lower()=="tv":
-					self.tv_shows.append((subreddit["i3"], "derived"))
-				elif subreddit["i1"].lower()=="hobbies":
-					self.hobbies.append((subreddit["i3"] or subreddit["i2"], "derived"))
-				else:
-					self.interests.append(subreddit["i3"] or subreddit["i2"] or subreddit["i1"])
-		'''
 
 	def process_comment(self,comment):
 		self.commented_subreddits.append((comment["subreddit"],self.permalink(comment)))
