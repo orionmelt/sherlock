@@ -29,6 +29,7 @@ class DataExtractor:
 		(r"\bgonna\b", "going to"),
 		(r"\bwanna\b", "want to"),
 		(r"\b(kinda|kind of)\b", ""),
+		(r"\b(sorta|sort of)\b", ""),
 		(r"\b(dunno|donno)\b", "do not know"),
 		(r"\b(cos|coz|cus|cuz)\b", "because"),
 		(r"\bfave\b", "favorite"),
@@ -37,9 +38,13 @@ class DataExtractor:
 		(r"\bheres\b", "here is"),
 		(r"\btheres\b", "there is"),
 		(r"\bwheres\b", "where is"),
-		(r"\[(.*?)\]\((.*?)\)", r"\1"), # Remove links from Markdown
-		(r"\"(.*?)\"", r""), # Remove text within quotes
-		(r"\.+?", r". "), # Remove ellipses
+		(r"\[(.*?)\]\((.*?)\)", r""), 	# Remove links from Markdown
+		(r"[\"\“](.*?)[\"\”]", r""), 	# Remove text within quotes
+		(r" \'(.*?)\ '", r""), 			# Remove text within quotes
+		(r"\.+?", r". "), 				# Remove ellipses
+		(r"\(.*?\)", r""), 				# Remove text within round brackets
+		(r"\blike|love\b", r"prefer"), 	# Default POS tagger seems to always tag "like" (and sometimes "love") as a noun - this is a bandaid fix for now
+
 	]
 
 	skip_verbs 			= ["were", "think", "guess"]
@@ -51,18 +56,18 @@ class DataExtractor:
 	  		{<RB.*>*<V.*>+<RB.*>*}			# adverb* verb adverb* (really think / strongly suggest / look intensely)
 	  _N:
 	  		{<DT>*<JJ>*<NN.*>+}				# determiner adjective noun(s) (a beautiful house / the strongest fighter)
-	  P1: 
+	  _N_PREP_N:
+	  		{<_N>(<TO>|<IN>)<_N>}			# to/in noun ((newcomer) to physics / (big fan) of Queen / (newbie) in gaming )
+	  POSS: 
 	        {<PRP\$><_N>}					# My adjective noun/s (My awesome phone)
-	  P2:
+	  ACT1:
 	  		{<PRP><_VP><IN>*<_N>}			# I verb in* adjective* noun (I am a great chef / I like cute animals / I work in beautiful* New York / I live in the suburbs)
-	  P:
-	        {<P1>}
-	        {<P2>}
+	  ACT2:
+	  		{<PRP><_VP><IN>*<_N_PREP_N>}		# Above + to/in noun (I am a fan of Jaymay / I have trouble with flannel)
 	"""
 	chunker = RegexpParser(grammar)
 
 	def clean_up(self, text):
-		#TODO - ignore text within quotes, remove [] and ()
 		for original, rep in self.substitutions:
 			text = re.sub(original, rep, text, flags=re.I)
 		return text
@@ -106,79 +111,161 @@ class DataExtractor:
 		else:
 			return None
 
+	def verb_dict(self, phrase):
+		verbs = []
+		unnormalized_verbs = []
+		adverbs = []
+
+		for w,t in phrase:
+			if t.startswith("V"):
+				verbs.append(self.normalize(w,VERB))
+				unnormalized_verbs.append(w.lower())
+			elif t.startswith("RB"):
+				adverbs.append(self.normalize(w,ADV))
+			else:
+				# Something wrong - tag shouldn't be in verb phrase
+				pass
+
+		return {"verbs":verbs, "unnormalized_verbs":unnormalized_verbs, "adverbs":adverbs}
+
+	def noun_dict(self, phrase):
+		determiners = []
+		adjectives = []
+		nouns = []
+		unnormalized_nouns = []
+		proper_nouns = []
+
+		for w,t in phrase:
+			if t=="DT":
+				determiners.append(w.lower())
+			elif t.startswith("JJ"):
+				adjectives.append(self.normalize(w,ADJ))
+			elif t.startswith("NNP"):
+				proper_nouns.append(w)
+			elif t.startswith("N"):
+				nouns.append(self.normalize(w,NOUN))
+				unnormalized_nouns.append(w.lower())
+			else:
+				# Something wrong - tag shouldn't be in noun phrase
+				pass
+
+		return {"determiners":determiners, "adjectives":adjectives, "nouns":nouns, "unnormalized_nouns":unnormalized_nouns, "proper_nouns":proper_nouns}
+
+	def process_noun_phrase(self, noun_tree):
+		if noun_tree.label() != "_N":
+			return None
+
+		noun_phrase = self.noun_dict(noun_tree.leaves())
+		return noun_phrase
+
+	def process_npn_phrase(self, npn_tree):
+		if npn_tree.label() != "_N_PREP_N":
+			return None
+
+		pri_np = []
+		conn = []
+		sec_np = []
+		reached_connector = False
+		for i in range(len(npn_tree)):
+			node = npn_tree[i]
+			if type(node) is tuple: # we have hit the noun connector(s)
+				c,_ = node
+				conn.append(c)
+				reached_connector = True
+			else:
+				if reached_connector:
+					sec_np = self.process_noun_phrase(node)
+				else:
+					pri_np = self.process_noun_phrase(node)
+		return (pri_np, conn, sec_np)
+
+	def process_possession(self, phrase):
+		pronoun = None
+		primary_noun_phrase = {}
+		
+		for i in range(len(phrase)):
+			node = phrase[i]
+			if type(node) is tuple: # word can only be pronoun
+				w,t = node
+				if t=="PRP$":
+					pronoun = w.lower()
+				else: # what could this be?
+					pass
+			else:
+				if node.label()=="_N":
+					primary_noun_phrase = self.process_noun_phrase(node)
+				else: # what could this be?
+					pass
+
+		return {"kind":"possession", "primary_noun_phrase":primary_noun_phrase}
+
+	def process_action(self, phrase):
+		pronoun = None
+		prepositions = []
+		verb_phrase = {}
+		primary_noun_phrase = {}
+		noun_connectors = []
+		secondary_noun_phrase = {}
+
+		for i in range(len(phrase)):
+			node = phrase[i]
+			if type(node) is tuple: # word is either pronoun or preposition
+				w,t = node
+				if t=="PRP":
+					pronoun = w.lower()
+				elif t=="IN":
+					prepositions.append(w.lower())
+				else: # what could this be?!
+					pass
+			else:
+				if node.label()=="_VP":
+					verbs = node.leaves()
+					verb_phrase = self.verb_dict(node.leaves())
+				elif node.label()=="_N":
+					primary_noun_phrase = self.process_noun_phrase(node)
+				elif node.label()=="_N_PREP_N":
+					primary_noun_phrase, noun_connectors, secondary_noun_phrase = self.process_npn_phrase(node)
+
+		return {"kind":"action", "verb_phrase":verb_phrase, "prepositions":prepositions, "primary_noun_phrase":primary_noun_phrase, "noun_connectors":noun_connectors, "secondary_noun_phrase":secondary_noun_phrase}
+
 	def extract_chunks(self, text):
 		chunks = []
+		sentiments = []
 		text = self.clean_up(text)
 		blob = TextBlob(text)
 
 		for sentence in blob.sentences:
+			sentiments.append((sentence.sentiment.polarity, sentence.sentiment.subjectivity))
 			
 			if not sentence.tags or not re.search(r"\b(i|my)\b",str(sentence),re.I):
 				continue
 
 			tree = self.chunker.parse(sentence.tags)
 
-			for subtree in tree.subtrees(filter = lambda t: t.node in ['P1','P2']):
+			for subtree in tree.subtrees(filter = lambda t: t.label() in ['POSS','ACT1','ACT2']):
+				
 				phrase = subtree.leaves()
-				phrase_type = subtree.node
-
+				phrase_type = subtree.label()
 				if not any(x in [("i","PRP"), ("my","PRP$")] for x in [(w.lower(),t) for w,t in phrase]) or \
-				   (phrase_type=="P2" and any(word in self.skip_verbs for word in [w for w,t in phrase if t.startswith("V")])) or \
-				   (phrase_type=="P2" and any(word in self.skip_prepositions for word in [w for w,t in phrase if t=="IN"])) or \
-				   (phrase_type=="P2" and any(word in self.skip_adjectives for word in [w for w,t in phrase if t=="JJ"])):
+				   (phrase_type in ["ACT1","ACT2"] and (any(word in self.skip_verbs for word in [w for w,t in phrase if t.startswith("V")]) or \
+														any(word in self.skip_prepositions for word in [w for w,t in phrase if t=="IN"]) or \
+														any(word in self.skip_adjectives for word in [w for w,t in phrase if t=="JJ"]))
+														):
 					continue
 
-				pronouns = []
-				verbs = []
-				actual_verbs = []
-				adverbs = []
-				prepositions = []
-				adjectives = []
-				nouns = []
-				cardinals = []
-				# TODO - Handle proper nouns?
-				# TODO - Default POS tagger tags "love" as NN, what can we do about this?
+				if subtree.label() == "POSS":
+					chunk = self.process_possession(subtree)
+					if chunk:
+						chunks.append(chunk)
+				elif subtree.label() in ["ACT1","ACT2"]:
+					chunk = self.process_action(subtree)
+					if chunk:
+						chunks.append(chunk)
 
-				for w,t in phrase:
-					if t.startswith("PRP"):
-						pronouns.append(self.normalize(w,NOUN).lower())		
-					elif t.startswith("V"):
-						verbs.append(self.normalize(w,VERB))
-						actual_verbs.append(w.lower())
-					elif t.startswith("RB"):
-						adverbs.append(self.normalize(w,ADV))
-					elif t == "IN":
-						prepositions.append(w.lower())
-					elif t == "JJ":
-						adjectives.append(self.normalize(w,ADJ))
-					elif t.startswith("N"):
-						if phrase_type == "P1":
-							nouns.append(self.normalize(w,NOUN))
-						elif phrase_type == "P2":
-							nouns.append(w.lower())
-					elif t == "CD":
-						cardinals.append(w.lower())
-				
-				if "my" in pronouns:
-					chunks.append({
-						"kind":"possession", 
-						"adjectives":adjectives, 
-						"nouns":nouns
-					})
+		return (chunks, sentiments)
 
-				if "i" in pronouns:
-					chunks.append({
-						"kind":"action", 
-						"verbs":verbs,
-						"actual_verbs":actual_verbs,
-						"adverbs":adverbs, 
-						"prepositions":prepositions, 
-						"adjectives":adjectives, 
-						"nouns":nouns,
-						"cardinals":cardinals
-					})
-		
-		return chunks
+	def ngrams(self,text,n=4):
+		return [" ".join(w) for w in TextBlob(text).ngrams(n=n)]
 
 	@staticmethod
 	def test_sentence(sentence):
