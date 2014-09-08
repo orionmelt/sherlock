@@ -50,12 +50,13 @@ class DataExtractor:
 	skip_verbs 			= ["were", "think", "guess"]
 	skip_prepositions 	= ["that"]
 	skip_adjectives		= ["sure","glad","happy","afraid","sorry"]
+	skip_nouns			= ["right"]
 
 	grammar = r"""
 	  _VP:	
 	  		{<RB.*>*<V.*>+<RB.*>*}			# adverb* verb adverb* (really think / strongly suggest / look intensely)
 	  _N:
-	  		{<DT>*<JJ>*<NN.*>+}				# determiner adjective noun(s) (a beautiful house / the strongest fighter)
+	  		{<DT>*(<JJ>*<NN.*>+)+}				# determiner adjective noun(s) (a beautiful house / the strongest fighter)
 	  _N_PREP_N:
 	  		{<_N>(<TO>|<IN>)<_N>}			# to/in noun ((newcomer) to physics / (big fan) of Queen / (newbie) in gaming )
 	  POSS: 
@@ -155,7 +156,7 @@ class DataExtractor:
 		if noun_tree.label() != "_N":
 			return None
 
-		noun_phrase = self.noun_dict(noun_tree.leaves())
+		noun_phrase = self.noun_dict([(w,t) for (w,t) in noun_tree.leaves() if w not in self.skip_nouns])
 		return noun_phrase
 
 	def process_npn_phrase(self, npn_tree):
