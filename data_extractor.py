@@ -38,25 +38,20 @@ class DataExtractor:
 		(r"\bheres\b", "here is"),
 		(r"\btheres\b", "there is"),
 		(r"\bwheres\b", "where is"),
-		(r"\[(.*?)\]\((.*?)\)", r""), 	# Remove links from Markdown
-		(r"[\"\“](.*?)[\"\”]", r""), 	# Remove text within quotes
-		(r" \'(.*?)\ '", r""), 			# Remove text within quotes
-		(r"\.+?", r". "), 				# Remove ellipses
-		(r"\(.*?\)", r""), 				# Remove text within round brackets
 		(r"\blike|love\b", r"prefer"), 	# Default POS tagger seems to always tag "like" (and sometimes "love") as a noun - this is a bandaid fix for now
 
 	]
 
-	skip_verbs 			= ["were", "think", "guess"]
+	skip_verbs 			= ["were", "think", "guess","mean"]
 	skip_prepositions 	= ["that"]
 	skip_adjectives		= ["sure","glad","happy","afraid","sorry"]
-	skip_nouns			= ["right"]
+	skip_nouns			= ["right","way"]
 
 	grammar = r"""
 	  _VP:	
 	  		{<RB.*>*<V.*>+<RB.*>*}			# adverb* verb adverb* (really think / strongly suggest / look intensely)
 	  _N:
-	  		{<DT>*(<JJ>*<NN.*>+)+}				# determiner adjective noun(s) (a beautiful house / the strongest fighter)
+	  		{<DT>*<JJ>*<NN.*>+<JJ>*}		# determiner adjective noun(s) (a beautiful house / the strongest fighter)
 	  _N_PREP_N:
 	  		{<_N>(<TO>|<IN>)<_N>}			# to/in noun ((newcomer) to physics / (big fan) of Queen / (newbie) in gaming )
 	  POSS: 
@@ -64,7 +59,7 @@ class DataExtractor:
 	  ACT1:
 	  		{<PRP><_VP><IN>*<_N>}			# I verb in* adjective* noun (I am a great chef / I like cute animals / I work in beautiful* New York / I live in the suburbs)
 	  ACT2:
-	  		{<PRP><_VP><IN>*<_N_PREP_N>}		# Above + to/in noun (I am a fan of Jaymay / I have trouble with flannel)
+	  		{<PRP><_VP><IN>*<_N_PREP_N>}	# Above + to/in noun (I am a fan of Jaymay / I have trouble with flannel)
 	"""
 	chunker = RegexpParser(grammar)
 
@@ -73,7 +68,14 @@ class DataExtractor:
 			text = re.sub(original, rep, text, flags=re.I)
 		return text
 
-	def normalize(self, word,kind="n"):
+	def normalize(self, word, tag="N"):
+		kind = NOUN
+		if tag.startswith("V"):
+			kind = VERB
+		elif tag.startswith("RB"):
+			kind = ADV
+		elif tag.startswith("J"):
+			kind = ADJ
 		return Word(word).lemmatize(kind).lower()
 
 	def pet_animal(self, word):
@@ -112,122 +114,92 @@ class DataExtractor:
 		else:
 			return None
 
-	def verb_dict(self, phrase):
-		verbs = []
-		unnormalized_verbs = []
-		adverbs = []
-
-		for w,t in phrase:
-			if t.startswith("V"):
-				verbs.append(self.normalize(w,VERB))
-				unnormalized_verbs.append(w.lower())
-			elif t.startswith("RB"):
-				adverbs.append(self.normalize(w,ADV))
-			else:
-				# Something wrong - tag shouldn't be in verb phrase
-				pass
-
-		return {"verbs":verbs, "unnormalized_verbs":unnormalized_verbs, "adverbs":adverbs}
-
-	def noun_dict(self, phrase):
-		determiners = []
-		adjectives = []
-		nouns = []
-		unnormalized_nouns = []
-		proper_nouns = []
-
-		for w,t in phrase:
-			if t=="DT":
-				determiners.append(w.lower())
-			elif t.startswith("JJ"):
-				adjectives.append(self.normalize(w,ADJ))
-			elif t.startswith("NNP"):
-				proper_nouns.append(w)
-			elif t.startswith("N"):
-				nouns.append(self.normalize(w,NOUN))
-				unnormalized_nouns.append(w.lower())
-			else:
-				# Something wrong - tag shouldn't be in noun phrase
-				pass
-
-		return {"determiners":determiners, "adjectives":adjectives, "nouns":nouns, "unnormalized_nouns":unnormalized_nouns, "proper_nouns":proper_nouns}
+	def process_verb_phrase(self, verb_tree):
+		if verb_tree.label() != "_VP":
+			return None
+		verb_phrase = verb_tree.leaves()
+		return verb_phrase
 
 	def process_noun_phrase(self, noun_tree):
 		if noun_tree.label() != "_N":
 			return None
-
-		noun_phrase = self.noun_dict([(w,t) for (w,t) in noun_tree.leaves() if w not in self.skip_nouns])
+		if any(n in self.skip_nouns for n,t in noun_tree.leaves() if t.startswith("N")):
+			return None
+		noun_phrase = noun_tree.leaves()
 		return noun_phrase
 
 	def process_npn_phrase(self, npn_tree):
 		if npn_tree.label() != "_N_PREP_N":
 			return None
-
-		pri_np = []
-		conn = []
-		sec_np = []
-		reached_connector = False
+		noun_phrase = []
+		prep_noun_phrase = []
 		for i in range(len(npn_tree)):
 			node = npn_tree[i]
-			if type(node) is tuple: # we have hit the noun connector(s)
-				c,_ = node
-				conn.append(c)
-				reached_connector = True
+			if type(node) is tuple: # we have hit the prepositions in a prep noun phrase
+				prep_noun_phrase.append(node)
 			else:
-				if reached_connector:
-					sec_np = self.process_noun_phrase(node)
+				if prep_noun_phrase:
+					prep_noun_phrase += self.process_noun_phrase(node)
 				else:
-					pri_np = self.process_noun_phrase(node)
-		return (pri_np, conn, sec_np)
+					noun_phrase = self.process_noun_phrase(node)
+		return (noun_phrase, prep_noun_phrase)
 
 	def process_possession(self, phrase):
-		pronoun = None
-		primary_noun_phrase = {}
+		noun_phrase = []
 		
 		for i in range(len(phrase)):
 			node = phrase[i]
 			if type(node) is tuple: # word can only be pronoun
 				w,t = node
-				if t=="PRP$":
-					pronoun = w.lower()
-				else: # what could this be?
-					pass
-			else:
+				if t=="PRP$" and w.lower()!="my":
+					return None
+			else: # type has to be nltk.tree.Tree
 				if node.label()=="_N":
-					primary_noun_phrase = self.process_noun_phrase(node)
+					noun_phrase = self.process_noun_phrase(node)
 				else: # what could this be?
 					pass
-
-		return {"kind":"possession", "primary_noun_phrase":primary_noun_phrase}
+		if noun_phrase:
+			return {
+				"kind":"possession",
+				"noun_phrase":noun_phrase
+				}
+		else:
+			return None
 
 	def process_action(self, phrase):
-		pronoun = None
+		verb_phrase = []
 		prepositions = []
-		verb_phrase = {}
-		primary_noun_phrase = {}
-		noun_connectors = []
-		secondary_noun_phrase = {}
+		noun_phrase = []
+		prep_noun_phrase = []
 
 		for i in range(len(phrase)):
 			node = phrase[i]
 			if type(node) is tuple: # word is either pronoun or preposition
 				w,t = node
-				if t=="PRP":
-					pronoun = w.lower()
+				if t=="PRP" and w.lower()!="i":
+					return None
 				elif t=="IN":
-					prepositions.append(w.lower())
+					prepositions.append((w.lower(),t))
 				else: # what could this be?!
 					pass
 			else:
 				if node.label()=="_VP":
-					verbs = node.leaves()
-					verb_phrase = self.verb_dict(node.leaves())
+					verb_phrase = self.process_verb_phrase(node)
 				elif node.label()=="_N":
-					primary_noun_phrase = self.process_noun_phrase(node)
+					noun_phrase = self.process_noun_phrase(node)
 				elif node.label()=="_N_PREP_N":
-					primary_noun_phrase, noun_connectors, secondary_noun_phrase = self.process_npn_phrase(node)
+					noun_phrase, prep_noun_phrase = self.process_npn_phrase(node)
 
-		return {"kind":"action", "verb_phrase":verb_phrase, "prepositions":prepositions, "primary_noun_phrase":primary_noun_phrase, "noun_connectors":noun_connectors, "secondary_noun_phrase":secondary_noun_phrase}
+		if noun_phrase:
+			return {
+				"kind":"action",
+				"verb_phrase":verb_phrase,
+				"prepositions":prepositions,
+				"noun_phrase":noun_phrase,
+				"prep_noun_phrase":prep_noun_phrase
+				}
+		else:
+			return None
 
 	def extract_chunks(self, text):
 		chunks = []
@@ -265,7 +237,7 @@ class DataExtractor:
 
 		return (chunks, sentiments)
 
-	def ngrams(self,text,n=4):
+	def ngrams(self,text,n=2):
 		return [" ".join(w) for w in TextBlob(text).ngrams(n=n)]
 
 	@staticmethod
