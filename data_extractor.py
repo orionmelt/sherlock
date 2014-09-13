@@ -35,12 +35,12 @@ class DataExtractor:
 		(r"\b(dunno|donno)\b", "do not know"),
 		(r"\b(cos|coz|cus|cuz)\b", "because"),
 		(r"\bfave\b", "favorite"),
-		(r"\bbtw\b", "by the way"),
+		(r"\b(btw| by the way)\b", ""),
 		(r"\bhubby\b", "husband"),
 		(r"\bheres\b", "here is"),
 		(r"\btheres\b", "there is"),
 		(r"\bwheres\b", "where is"),
-		(r"\blike|love\b", r"prefer"), 	# Default POS tagger seems to always tag "like" (and sometimes "love") as a noun - this is a bandaid fix for now
+		(r"\b(like|love)\b", "prefer"), 	# Default POS tagger seems to always tag "like" (and sometimes "love") as a noun - this is a bandaid fix for now
 
 	]
 
@@ -53,7 +53,7 @@ class DataExtractor:
 	  _VP:	
 	  		{<RB.*>*<V.*>+<RB.*>*}			# adverb* verb adverb* (really think / strongly suggest / look intensely)
 	  _N:
-	  		{<DT>*<JJ>*<NN.*>+<JJ>*}		# determiner adjective noun(s) (a beautiful house / the strongest fighter)
+	  		{<DT>*(<JJ>*<NN.*>*)+}			# determiner adjective noun(s) (a beautiful house / the strongest fighter)
 	  _N_PREP_N:
 	  		{<_N>(<TO>|<IN>)<_N>}			# to/in noun ((newcomer) to physics / (big fan) of Queen / (newbie) in gaming )
 	  POSS: 
@@ -97,7 +97,7 @@ class DataExtractor:
 			return None
 
 	def relationship_partner(self, word):
-		if re.match(r"\b(boyfriend|girlfriend|so|wife|husband)\b",word):
+		if re.match(r"\b(ex-)*(boyfriend|girlfriend|so|wife|husband)\b",word):
 			return word
 		else:
 			return None
@@ -124,9 +124,9 @@ class DataExtractor:
 
 	def process_noun_phrase(self, noun_tree):
 		if noun_tree.label() != "_N":
-			return None
+			return []
 		if any(n in self.skip_nouns for n,t in noun_tree.leaves() if t.startswith("N")):
-			return None
+			return []
 		noun_phrase = noun_tree.leaves()
 		return noun_phrase
 
