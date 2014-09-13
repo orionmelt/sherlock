@@ -25,6 +25,8 @@ class DataExtractor:
 		(r"\b(werent|weren't)\b", "were not"),
 		(r"\b(havent|haven't)\b", "have not"),
 		(r"\b(couldnt|couldn't)\b", "could not"),
+		(r"\b(hadnt|hadn't)\b", "had not"),
+		(r"\b(wouldnt|wouldn't)\b", "would not"),
 		(r"\bgotta\b", "have to"),
 		(r"\bgonna\b", "going to"),
 		(r"\bwanna\b", "want to"),
