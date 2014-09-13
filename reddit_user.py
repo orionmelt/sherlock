@@ -12,7 +12,7 @@ headers = {
 }
 
 def printable_counter(sequence):
-	return ["%s/%s" % (v,c) for v,c in Counter([v for v,s in sequence]).most_common()]
+	return "\n".join(["%s/%s" % (v,c) for v,c in Counter([v for v,s in sequence]).most_common()])
 
 class RedditUser:
 	username=None
@@ -44,11 +44,12 @@ class RedditUser:
 	corpus = ""
 
 	# Skip if any of these is the *only* attribute
-	skip_attributes = ["fan","bit","right","way","sort","kind","supporter","believer","expert","rapist","amount","part","gender","content","sucker"]
+	skip_lone_attributes = 	["fan","bit","right","way","sort","kind","supporter","believer","expert","part","gender","content"]
+	skip_attributes = 		["rapist","amount","sucker","douche","racist"]
 
 	include_attributes = ["geek","nerd","nurse"]
 
-	common_attribute_endings = ("er","ic","an","st","nt","rt","at","or","ie","ac","ct","ar","ous")
+	common_attribute_endings = ("er","ic","an","st","nt","rt","at","or","ie","ac","ct","ar")
 
 
 	def __init__(self,username):
@@ -58,18 +59,18 @@ class RedditUser:
 		text_rep =  "-"*80 + "\n"
 		text_rep += "/u/%s:\n" % self.username
 		text_rep += "-"*80 + "\n"
-		text_rep += "gender: %s\n" % self.gender()
-		text_rep += "age: %s\n" % str(printable_counter(self.ages))
-		text_rep += "has lived in: %s\n" % str(printable_counter(self.live_in))
-		text_rep += "grew up in: %s\n" % str(printable_counter(self.grew_up_in))
-		text_rep += "orientation: %s\n" % str(printable_counter(self.orientations))
-		text_rep += "family_members: %s\n" % str(printable_counter(self.family_members))
-		text_rep += "relationship_partners: %s\n" % str(printable_counter(self.relationship_partners))
-		text_rep += "locations: %s\n" % str(printable_counter(self.locations))
-		text_rep += "pets: %s\n" % str(printable_counter(self.pets))
-		text_rep += "hobbies: %s\n" % str(printable_counter(self.hobbies))
-		text_rep += "tv shows: %s\n" % str(printable_counter(self.tv_shows))
-		text_rep += "loves: %s\n" % str(printable_counter(self.loves))
+		text_rep += "gender: %s\n\n" % self.gender()
+		text_rep += "age: %s\n\n" % str(printable_counter(self.ages))
+		text_rep += "has lived in:\n%s\n\n" % str(printable_counter(self.live_in))
+		text_rep += "grew up in:\n%s\n\n" % str(printable_counter(self.grew_up_in))
+		text_rep += "orientation:\n%s\n\n" % str(printable_counter(self.orientations))
+		text_rep += "family_members:\n%s\n\n" % str(printable_counter(self.family_members))
+		text_rep += "relationship_partners:\n%s\n\n" % str(printable_counter(self.relationship_partners))
+		text_rep += "locations:\n%s\n\n" % str(printable_counter(self.locations))
+		text_rep += "pets:\n%s\n\n" % str(printable_counter(self.pets))
+		text_rep += "hobbies:\n%s\n\n" % str(printable_counter(self.hobbies))
+		text_rep += "tv shows:\n%s\n\n" % str(printable_counter(self.tv_shows))
+		text_rep += "loves:\n%s\n\n" % str(printable_counter(self.loves))
 		text_rep += "\n" + "-"*80 + "\n"
 		text_rep += "info that may be useful but hasn't been processed yet\n"
 		text_rep += "-"*80 + "\n"
@@ -79,7 +80,7 @@ class RedditUser:
 		text_rep += "other actions:\n%s\n\n" % str(printable_counter(self.other_actions))
 		
 		text_rep += "commented subreddits:\n%s\n\n" % str(printable_counter(self.commented_subreddits))
-		text_rep += "interests:\n%s\n\n" % str(Counter(self.interests).most_common())
+		text_rep += "interests:\n%s\n\n" % str(printable_counter(self.interests))
 		text_rep += "subreddit attributes:\n%s\n\n" % str(printable_counter(self.subreddit_attributes))
 		
 		text_rep += "Average sentiment: %.3f\n" % (sum(float(p) for p,_ in self.sentiments)/len(self.sentiments))
@@ -95,7 +96,8 @@ class RedditUser:
 			(r" \'(.*?)\ '", r""),			# Remove text within quotes
 			(r"\.+?", r". "), 				# Remove ellipses
 			(r"\(.*?\)", r""), 				# Remove text within round brackets
-			(r"&amp;",r"&")					# Decode HTML entities
+			(r"&amp;",r"&"),				# Decode HTML entities
+			(r"http.?:\S+\b",r" ")			# Remove URLs
 		]
 		for original, rep in substitutions:
 			body = re.sub(original, rep, body, flags=re.I)
@@ -152,21 +154,22 @@ class RedditUser:
 		if chunk["kind"] == "possession" and chunk["noun_phrase"]:
 			noun_phrase = chunk["noun_phrase"]
 			noun_phrase_text = " ".join([w for w,t in noun_phrase])
+			norm_nouns = " ".join([extractor.normalize(w,t) for w,t in noun_phrase if t.startswith("N")])
 			
 			noun = next((w for w,t in noun_phrase if t.startswith("N")),None)
+			if noun:
+				pet = extractor.pet_animal(noun)
+				family_member = extractor.family_member(noun)
+				relationship_partner = extractor.relationship_partner(noun)
 
-			pet = extractor.pet_animal(noun)
-			family_member = extractor.family_member(noun)
-			relationship_partner = extractor.relationship_partner(noun)
-
-			if pet:
-				self.pets.append((pet, self.permalink(comment)))
-			elif family_member:
-				self.family_members.append((family_member, self.permalink(comment)))
-			elif relationship_partner:
-				self.relationship_partners.append((relationship_partner, self.permalink(comment)))
-			else:
-				self.other_possessions.append((noun_phrase_text, self.permalink(comment)))
+				if pet:
+					self.pets.append((pet, self.permalink(comment)))
+				elif family_member:
+					self.family_members.append((family_member, self.permalink(comment)))
+				elif relationship_partner:
+					self.relationship_partners.append((relationship_partner, self.permalink(comment)))
+				else:
+					self.other_possessions.append((norm_nouns, self.permalink(comment)))
 
 		elif chunk["kind"] == "action" and chunk["verb_phrase"]:
 			verb_phrase = chunk["verb_phrase"]
@@ -182,7 +185,7 @@ class RedditUser:
 
 			noun_phrase = chunk["noun_phrase"]
 			noun_phrase_text = " ".join([w for w,t in noun_phrase if t not in ["DT"]])
-			nouns = [extractor.normalize(w,t) for w,t in noun_phrase if t.startswith("N")]
+			nouns = [extractor.normalize(w,t) for w,t in noun_phrase if t.startswith("N") or t.startswith("J")]
 			determiners = [extractor.normalize(w,t) for w,t in noun_phrase if t.startswith("DT")]
 
 			prep_noun_phrase = chunk["prep_noun_phrase"]
@@ -192,7 +195,7 @@ class RedditUser:
 			pnp_determiners = [extractor.normalize(w,t) for w,t in prep_noun_phrase if t.startswith("DT")]
 
 			# TODO - Handle negative actions (such as I am not...), but for now:
-			if any(w in ["never","no","not"] for w in norm_adverbs+determiners):
+			if any(w in ["never","no","not","nothing"] for w in norm_adverbs+determiners):
 				return
 
 			# I am/was ...
@@ -210,7 +213,11 @@ class RedditUser:
 				
 				if other_attribute and \
 					(
-						(not (len(other_attribute)==1 and other_attribute[0] in self.skip_attributes) and any(a.endswith(self.common_attribute_endings) for a in other_attribute)) or
+						(not (
+							(len(other_attribute)==1 and other_attribute[0] in self.skip_lone_attributes) or 
+							any(a in other_attribute for a in self.skip_attributes)
+							) and any(a.endswith(self.common_attribute_endings) for a in other_attribute)
+						) or
 						(any(a in other_attribute for a in self.include_attributes))
 					):
 					self.other_attributes.append((noun_phrase_text, self.permalink(comment)))
@@ -229,7 +236,8 @@ class RedditUser:
 				self.loves.append((noun_phrase_text, self.permalink(comment)))
 
 			elif nouns:
-				other_actions = verb_phrase_text + "-" + " ".join(prepositions) + "-" + noun_phrase_text
+				#other_actions = verb_phrase_text + "-" + " ".join(prepositions) + "-" + noun_phrase_text + "-" + prep_noun_phrase_text
+				other_actions = " ".join(norm_verbs)
 				self.other_actions.append((other_actions, self.permalink(comment)))
 
 	def derive_attributes(self):
@@ -244,13 +252,13 @@ class RedditUser:
 		subreddit = ([s for s in subreddits if (s["name"]==comment["subreddit"] and s["i3"]!="Ignore")] or [None])[0]
 		if subreddit:
 			if subreddit["i1"].lower()=="location":
-				self.locations.append((subreddit["i3"], "derived"))
+				self.locations.append((subreddit["i3"], self.permalink(comment)))
 			elif subreddit["i1"].lower()=="entertainment" and subreddit["i2"].lower()=="tv":
-				self.tv_shows.append((subreddit["i3"], "derived"))
+				self.tv_shows.append((subreddit["i3"], self.permalink(comment)))
 			elif subreddit["i1"].lower()=="hobbies":
-				self.hobbies.append((subreddit["i3"] or subreddit["i2"], "derived"))
+				self.hobbies.append((subreddit["i3"] or subreddit["i2"], self.permalink(comment)))
 			else:
-				self.interests.append(subreddit["i3"] or subreddit["i2"] or subreddit["i1"] or "Other")
+				self.interests.append((subreddit["i3"] or subreddit["i2"] or subreddit["i1"] or "Other", self.permalink(comment)))
 
 			if subreddit["pdk1"]:
 				self.subreddit_attributes.append((subreddit["pdk1"]+":::"+subreddit["pdv1"], self.permalink(comment)))
