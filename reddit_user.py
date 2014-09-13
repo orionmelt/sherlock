@@ -43,7 +43,9 @@ class RedditUser:
 
 	corpus = ""
 
-	skip_attributes = ["fan","bit","right","way","sort","kind","supporter","believer","expert","rapist","amount","part","gender","content","sucker"] # Skip if any of these is the *only* attribute
+	# Skip if any of these is the *only* attribute
+	skip_attributes = ["fan","bit","right","way","sort","kind","supporter","believer","expert","rapist","amount","part","gender","content","sucker"]
+
 	include_attributes = ["geek","nerd","nurse"]
 
 	common_attribute_endings = ("er","ic","an","st","nt","rt","at","or","ie","ac","ct","ar","ous")
@@ -87,7 +89,16 @@ class RedditUser:
 		
 	def sanitize_comment(self, comment):
 		body = " ".join([l for l in comment["body"].split("\n") if not l.startswith("&gt;")])
-		body = re.sub(r"\b\".*\"\b","",body)
+		substitutions = [
+			(r"\[(.*?)\]\((.*?)\)", r""), 	# Remove links from Markdown
+			(r"[\"\“](.*?)[\"\”]", r""), 	# Remove text within quotes
+			(r" \'(.*?)\ '", r""),			# Remove text within quotes
+			(r"\.+?", r". "), 				# Remove ellipses
+			(r"\(.*?\)", r""), 				# Remove text within round brackets
+			(r"&amp;",r"&")					# Decode HTML entities
+		]
+		for original, rep in substitutions:
+			body = re.sub(original, rep, body, flags=re.I)
 		return body
 
 	def gender(self):
@@ -115,7 +126,8 @@ class RedditUser:
 				subreddit = child["data"]["subreddit"].encode("ascii","ignore").lower()
 				link_id = child["data"]["link_id"].encode("ascii","ignore").lower()[3:]
 				comment_id = child["data"]["id"].encode("ascii","ignore")
-				comments.append({"body":body, "created_utc":created_utc, "subreddit":subreddit, "link_id":link_id, "comment_id":comment_id})
+				top_level = True if child["data"]["parent_id"].startswith("t3") else False
+				comments.append({"subreddit":subreddit, "body":body, "link_id":link_id, "comment_id":comment_id, "top_level":top_level, "created_utc":created_utc})
 
 			after = response["data"]["after"]
 
@@ -137,14 +149,11 @@ class RedditUser:
 		return "http://www.reddit.com/r/%s/comments/%s/_/%s" % (subreddit, link_id, comment_id)
 
 	def load_attributes(self, chunk, comment):
-		if chunk["kind"] == "possession" and chunk["primary_noun_phrase"]:
+		if chunk["kind"] == "possession" and chunk["noun_phrase"]:
+			noun_phrase = chunk["noun_phrase"]
+			noun_phrase_text = " ".join([w for w,t in noun_phrase])
 			
-			pnp = chunk["primary_noun_phrase"]
-			noun = (pnp["proper_nouns"] or pnp["nouns"])[0]
-			adjectives = (" ".join(pnp["adjectives"])).strip()
-			
-			nouns = (" ".join(pnp["nouns"])).strip()
-			proper_nouns = (" ".join(pnp["proper_nouns"])).strip()
+			noun = next((w for w,t in noun_phrase if t.startswith("N")),None)
 
 			pet = extractor.pet_animal(noun)
 			family_member = extractor.family_member(noun)
@@ -157,61 +166,70 @@ class RedditUser:
 			elif relationship_partner:
 				self.relationship_partners.append((relationship_partner, self.permalink(comment)))
 			else:
-				self.other_possessions.append(((adjectives+" "+(proper_nouns+" "+nouns)).strip(), self.permalink(comment)))
+				self.other_possessions.append((noun_phrase_text, self.permalink(comment)))
 
-		elif chunk["kind"] == "action":
-			vp = chunk["verb_phrase"]
-			pnp = chunk["primary_noun_phrase"]
-			nc = chunk["noun_connectors"]
-			snp = chunk["secondary_noun_phrase"]
+		elif chunk["kind"] == "action" and chunk["verb_phrase"]:
+			verb_phrase = chunk["verb_phrase"]
+			verb_phrase_text = " ".join([w for w,t in verb_phrase])
+
+			norm_adverbs = [extractor.normalize(w,t) for w,t in verb_phrase if t.startswith("RB")]
+			adverbs = [w.lower() for w,t in verb_phrase if t.startswith("RB")]
+
+			norm_verbs = [extractor.normalize(w,t) for w,t in verb_phrase if t.startswith("V")]
+			verbs = [w.lower() for w,t in verb_phrase if t.startswith("V")]
+
+			prepositions = [w for w,t in chunk["prepositions"]]
+
+			noun_phrase = chunk["noun_phrase"]
+			noun_phrase_text = " ".join([w for w,t in noun_phrase if t not in ["DT"]])
+			nouns = [extractor.normalize(w,t) for w,t in noun_phrase if t.startswith("N")]
+			determiners = [extractor.normalize(w,t) for w,t in noun_phrase if t.startswith("DT")]
+
+			prep_noun_phrase = chunk["prep_noun_phrase"]
+			prep_noun_phrase_text = " ".join([w for w,t in prep_noun_phrase])
+			pnp_prepositions = [w.lower() for w,t in prep_noun_phrase if t in ["TO","IN"]]
+			pnp_nouns = [extractor.normalize(w,t) for w,t in prep_noun_phrase if t.startswith("N")]
+			pnp_determiners = [extractor.normalize(w,t) for w,t in prep_noun_phrase if t.startswith("DT")]
 
 			# TODO - Handle negative actions (such as I am not...), but for now:
-			if any(x in ["never","no","not"] for x in vp["adverbs"]+pnp["determiners"]):
+			if any(w in ["never","no","not"] for w in norm_adverbs+determiners):
 				return
 
-			adjectives = (" ".join(pnp["adjectives"])).strip()
-			nouns = (" ".join(pnp["nouns"]).strip()).strip()
-			proper_nouns = (" ".join(pnp["proper_nouns"])).strip()
-
 			# I am/was ...
-			if len(vp["verbs"])==1 and "be" in vp["verbs"] and not chunk["prepositions"] and  (pnp["proper_nouns"] or pnp["nouns"]):
+			if len(norm_verbs)==1 and "be" in norm_verbs and not prepositions and noun_phrase:
 				other_attribute = []
-				for noun in pnp["nouns"]+pnp["proper_nouns"]:
+				for noun in nouns:
 					gender = extractor.gender(noun)
 					orientation = extractor.orientation(noun)
 					if gender:
 						self.genders.append((gender, self.permalink(comment)))
 					elif orientation:
-						self.orientations.append((orientation,self.permalink(comment)))					
-					elif not noun.endswith("ing") and "am" in vp["unnormalized_verbs"]: # Ignore gerunds for now, and include only "am" phrases
+						self.orientations.append((orientation,self.permalink(comment)))
+					elif not noun.endswith("ing") and "am" in verbs: # Ignore gerunds for now, and include only "am" phrases
 						other_attribute.append(noun)
+				
 				if other_attribute and \
-				   ((not (len(other_attribute)==1 and other_attribute[0] in self.skip_attributes) and \
-				     any(a.endswith(self.common_attribute_endings) for a in other_attribute)) or \
-				    (any(a in other_attribute for a in self.include_attributes))):
-					self.other_attributes.append(((adjectives+" "+" ".join(other_attribute)).strip(), self.permalink(comment)))
-					
+					(
+						(not (len(other_attribute)==1 and other_attribute[0] in self.skip_attributes) and any(a.endswith(self.common_attribute_endings) for a in other_attribute)) or
+						(any(a in other_attribute for a in self.include_attributes))
+					):
+					self.other_attributes.append((noun_phrase_text, self.permalink(comment)))
 				elif other_attribute:
-					self.more_attributes.append(((adjectives+" "+" ".join(other_attribute)).strip(), self.permalink(comment)))
-
+					self.more_attributes.append((noun_phrase_text, self.permalink(comment)))
 
 			# I live(d) in ...
-			elif "live" in vp["verbs"] and chunk["prepositions"] and (proper_nouns or nouns):
-				self.live_in.append((" ".join(chunk["prepositions"]) + "|" + (proper_nouns or nouns), self.permalink(comment)))
+			elif "live" in norm_verbs and prepositions and nouns:
+				self.live_in.append((" ".join(prepositions) + "-" + noun_phrase_text, self.permalink(comment)))
 			
 			# I grew up in ...
-			elif "grow" in vp["verbs"] and "up" in chunk["prepositions"] and nouns:
-				self.grew_up_in.append((" ".join(chunk["prepositions"]) + "|" + nouns, self.permalink(comment)))
+			elif "grow" in norm_verbs and "up" in prepositions and nouns:
+				self.grew_up_in.append((" ".join(prepositions+nouns), self.permalink(comment)))
 
-			elif len(vp["verbs"])==1 and "love" in vp["verbs"] and nouns:
-				self.loves.append(((adjectives+" "+nouns).strip(), self.permalink(comment)))
+			elif len(norm_verbs)==1 and "prefer" in norm_verbs and nouns:
+				self.loves.append((noun_phrase_text, self.permalink(comment)))
 
 			elif nouns:
-				verbs = (" ".join(vp["verbs"])).strip()
-				unnormalized_verbs = (" ".join(vp["unnormalized_verbs"])).strip()
-				prepositions = (" ".join(chunk["prepositions"])).strip()
-				#other_actions = ((unnormalized_verbs+" "+prepositions).strip() + " " + nouns).strip()
-				other_actions = verbs
+				other_actions = verb_phrase_text + "-" + " ".join(prepositions) + "-" + noun_phrase_text
 				self.other_actions.append((other_actions, self.permalink(comment)))
 
 	def derive_attributes(self):
