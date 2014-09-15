@@ -105,7 +105,7 @@ class RedditUser:
 
 	def gender(self):
 		if self.genders:
-			((g,_),_) = Counter(self.genders).most_common(1)[0]
+			(g,_) = Counter([g for g,_ in self.genders]).most_common(1)[0]
 			return g
 		else:
 			return None
@@ -202,8 +202,11 @@ class RedditUser:
 			if len(norm_verbs)==1 and "be" in norm_verbs and not prepositions and noun_phrase:
 				other_attribute = []
 				for noun in nouns:
-					gender = extractor.gender(noun)
-					orientation = extractor.orientation(noun)
+					gender = None
+					orientation = None
+					if "am" in verbs:
+						gender = extractor.gender(noun)
+						orientation = extractor.orientation(noun)
 					if gender:
 						self.genders.append((gender, self.permalink(comment)))
 					elif orientation:
