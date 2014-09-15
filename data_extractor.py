@@ -91,7 +91,7 @@ class DataExtractor:
 			return "mother"
 		elif re.match(r"\b(dad|father|pa|daddy)\b",word):
 			return "father"
-		elif re.match(r"\b(brother|sister|son|daughter)\b",word):
+		elif re.match(r"\b(brother|sister|son|daughter)s?\b",word):
 			return word
 		else:
 			return None
