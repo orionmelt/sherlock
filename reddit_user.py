@@ -249,7 +249,7 @@ class RedditUser:
 	def process_comment(self,comment):
 		self.commented_subreddits.append((comment["subreddit"],self.permalink(comment)))
 
-		subreddit = ([s for s in subreddits if (s["name"]==comment["subreddit"] and s["i3"]!="Ignore")] or [None])[0]
+		subreddit = ([s for s in subreddits if (s["name"]==comment["subreddit"] and s["ignore_interest"]!="Ignore")] or [None])[0]
 		if subreddit:
 			if subreddit["i1"].lower()=="location":
 				self.locations.append((subreddit["i3"], self.permalink(comment)))
@@ -258,10 +258,11 @@ class RedditUser:
 			elif subreddit["i1"].lower()=="hobbies":
 				self.hobbies.append((subreddit["i3"] or subreddit["i2"], self.permalink(comment)))
 			else:
-				self.interests.append((subreddit["i3"] or subreddit["i2"] or subreddit["i1"] or "Other", self.permalink(comment)))
+				#self.interests.append((subreddit["i3"] or subreddit["i2"] or subreddit["i1"] or "Other", self.permalink(comment)))
+				self.interests.append((subreddit["i1"]+">"+subreddit["i2"]+">"+subreddit["i3"], self.permalink(comment)))
 
-			if subreddit["pdk1"]:
-				self.subreddit_attributes.append((subreddit["pdk1"]+":::"+subreddit["pdv1"], self.permalink(comment)))
+			if subreddit["attribute"]:
+				self.subreddit_attributes.append((subreddit["attribute"]+":::"+subreddit["value"], self.permalink(comment)))
 
 		if comment["subreddit"].lower() in ignore_subs:
 			return False
