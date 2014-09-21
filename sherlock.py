@@ -19,6 +19,7 @@ elif args.has_key("--file") and args["--file"] == "read":
 start = datetime.datetime.now()
 
 u = RedditUser(sys.argv[1])
+print "Processing user %s" % u.username
 
 if file_mode == "write":
 	u.save_comments_to_file()
@@ -26,7 +27,10 @@ if file_mode == "write":
 elif file_mode == "read":
 	u.process_comments_from_file()
 else:
+	u.process_all_submissions()
 	u.process_all_comments()
-
+with open("results/%s.txt" % u.username,"w") as o:
+	o.write(str(u))
+print
 print u
-print "Processing complete... %s" % (datetime.datetime.now()-start)
+print "\nProcessing complete... %s" % (datetime.datetime.now()-start)
