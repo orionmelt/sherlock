@@ -15,7 +15,7 @@ class DataExtractor:
 		(r"\b(id|i'd)\b", "i would"),
 		(r"\b(i'll)\b", "i will"),
 		(r"\bbf\b", "boyfriend"),
-		(r"\bgf\b", "girlfriend"),
+		(r"\bgf|g/f\b", "girlfriend"),
 		(r"\byoure\b", "you are"),
 		(r"\b(dont|don't)\b", "do not"),
 		(r"\b(didnt|didn't)\b", "did not"),
@@ -35,25 +35,33 @@ class DataExtractor:
 		(r"\b(dunno|donno)\b", "do not know"),
 		(r"\b(cos|coz|cus|cuz)\b", "because"),
 		(r"\bfave\b", "favorite"),
-		(r"\b(btw| by the way)\b", ""),
 		(r"\bhubby\b", "husband"),
 		(r"\bheres\b", "here is"),
 		(r"\btheres\b", "there is"),
 		(r"\bwheres\b", "where is"),
-		(r"\b(like|love)\b", "prefer"), 	# Default POS tagger seems to always tag "like" (and sometimes "love") as a noun - this is a bandaid fix for now
-
+		# Common acronyms, abbreviations and slang terms
+		(r"\birl\b", "in real life"),
+		(r"\biar\b", "in a relationship"),
+		(r","," and "),
+		# Remove fluff phrases
+		(r"\b(btw|by the way)\b", ""),
+		(r"\b(tbh|to be honest)\b", ""),
+		(r"\b(imh?o|in my( humble)? opinion)\b", ""),
+		# Default POS tagger seems to always tag "like" (and sometimes "love") as a noun - this is a bandaid fix for now
+		(r"\bprefer\b", ""),
+		(r"\b(like|love)\b", "prefer"),
 	]
 
-	skip_verbs 			= ["were", "think", "guess","mean"]
+	skip_verbs 			= ["were","think","guess","mean"]
 	skip_prepositions 	= ["that"]
-	skip_adjectives		= ["sure","glad","happy","afraid","sorry"]
+	skip_adjectives		= ["sure","glad","happy","afraid","sorry","certain"]
 	skip_nouns			= ["right","way"]
 
 	grammar = r"""
 	  _VP:	
 	  		{<RB.*>*<V.*>+<RB.*>*}			# adverb* verb adverb* (really think / strongly suggest / look intensely)
 	  _N:
-	  		{<DT>*(<JJ>*<NN.*>*)+}			# determiner adjective noun(s) (a beautiful house / the strongest fighter)
+	  		{(<DT>*<JJ>*<NN.*>+(?!<POS>))+}	# determiner adjective noun(s) (a beautiful house / the strongest fighter)
 	  _N_PREP_N:
 	  		{<_N>(<TO>|<IN>)<_N>}			# to/in noun ((newcomer) to physics / (big fan) of Queen / (newbie) in gaming )
 	  POSS: 
@@ -81,37 +89,42 @@ class DataExtractor:
 		return Word(word).lemmatize(kind).lower()
 
 	def pet_animal(self, word):
-		if re.match(r"\b(dog|cat|hamster|fish|pig|snake|rat|parrot)\b",word):
+		word = word.lower()
+		if re.match(r"\b(dog|cat|hamster|fish|pig|snake|rat|parrot)\b", word):
 			return word
 		else:
 			return None
 
 	def family_member(self, word):
-		if re.match(r"\b(mom|mother|mum|mommy)\b",word):
+		word = word.lower()
+		if re.match(r"\b(mom|mother|mum|mommy)\b", word):
 			return "mother"
-		elif re.match(r"\b(dad|father|pa|daddy)\b",word):
+		elif re.match(r"\b(dad|father|pa|daddy)\b", word):
 			return "father"
-		elif re.match(r"\b(brother|sister|son|daughter)s?\b",word):
+		elif re.match(r"\b(brother|sister|son|daughter)s?\b", word):
 			return word
 		else:
 			return None
 
 	def relationship_partner(self, word):
-		if re.match(r"\b(ex-)*(boyfriend|girlfriend|so|wife|husband)\b",word):
+		word = word.lower()
+		if re.match(r"\b(ex-)*(boyfriend|girlfriend|so|wife|husband)\b", word):
 			return word
 		else:
 			return None
 
 	def gender(self, word):
-		if re.match(r"\b(girl|woman|female|lady|she)\b",word):
+		word = word.lower()
+		if re.match(r"\b(girl|woman|female|lady|she)\b", word):
 			return "female"
-		elif re.match(r"\b(guy|man|male|he|dude)\b",word):
+		elif re.match(r"\b(guy|man|male|he|dude)\b", word):
 			return "male"
 		else:
 			return None
 
 	def orientation(self, word):
-		if re.match(r"\b(gay|straight|bi|bisexual|homosexual)\b",word):
+		word = word.lower()
+		if re.match(r"\b(gay|straight|bi|bisexual|homosexual)\b", word):
 			return word
 		else:
 			return None
@@ -119,7 +132,7 @@ class DataExtractor:
 	def process_verb_phrase(self, verb_tree):
 		if verb_tree.label() != "_VP":
 			return None
-		verb_phrase = verb_tree.leaves()
+		verb_phrase = [(w.lower(),t) for w,t in verb_tree.leaves()]
 		return verb_phrase
 
 	def process_noun_phrase(self, noun_tree):
@@ -127,7 +140,7 @@ class DataExtractor:
 			return []
 		if any(n in self.skip_nouns for n,t in noun_tree.leaves() if t.startswith("N")):
 			return []
-		noun_phrase = noun_tree.leaves()
+		noun_phrase = [(w.lower(),t) for w,t in noun_tree.leaves()]
 		return noun_phrase
 
 	def process_npn_phrase(self, npn_tree):
@@ -138,7 +151,9 @@ class DataExtractor:
 		for i in range(len(npn_tree)):
 			node = npn_tree[i]
 			if type(node) is tuple: # we have hit the prepositions in a prep noun phrase
-				prep_noun_phrase.append(node)
+				w,t = node
+				w=w.lower()
+				prep_noun_phrase.append((w,t))
 			else:
 				if prep_noun_phrase:
 					prep_noun_phrase += self.process_noun_phrase(node)
@@ -219,9 +234,10 @@ class DataExtractor:
 
 			for subtree in tree.subtrees(filter = lambda t: t.label() in ['POSS','ACT1','ACT2']):
 				
-				phrase = subtree.leaves()
+				phrase = [(w.lower(),t) for w,t in subtree.leaves()]
 				phrase_type = subtree.label()
-				if not any(x in [("i","PRP"), ("my","PRP$")] for x in [(w.lower(),t) for w,t in phrase]) or \
+
+				if not any(x in [("i","PRP"), ("my","PRP$")] for x in [(w,t) for w,t in phrase]) or \
 				   (phrase_type in ["ACT1","ACT2"] and (any(word in self.skip_verbs for word in [w for w,t in phrase if t.startswith("V")]) or \
 														any(word in self.skip_prepositions for word in [w for w,t in phrase if t=="IN"]) or \
 														any(word in self.skip_adjectives for word in [w for w,t in phrase if t=="JJ"]))
