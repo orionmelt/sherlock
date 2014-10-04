@@ -33,4 +33,5 @@ with open("results/%s.txt" % u.username,"w") as o:
 	o.write(str(u))
 print
 print u
+print u.stats()
 print "\nProcessing complete... %s" % (datetime.datetime.now()-start)

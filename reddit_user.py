@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 
-import csv, datetime, re, requests, json, time, sys
+import csv, datetime, re, requests, json, time, sys, pytz
 from subreddits import subreddits, ignore_comments_subs, default_subs
 from collections import Counter
+from itertools import groupby
 from data_extractor import DataExtractor
 
 extractor = DataExtractor()
@@ -14,9 +15,28 @@ headers = {
 def most_common(sequence):
 	return "\n".join(["%s/%s" % (v,c) for v,c in Counter([v for v,s in sequence]).most_common()])
 
+
 class RedditUser:
 	username=None
+	signup_date = None
+	link_karma = 0
+	comment_karma = 0
+
+	activity_by_month = []
+	activity_by_weekday = []
+	activity_by_hour = []
+	activity_by_subreddits = []
 	
+	earliest_comment = None
+	latest_comment = None
+	worst_comment = None
+	best_comment = None
+
+	earliest_submission = None
+	latest_submission = None
+	worst_submission = None
+	best_submission = None
+
 	genders = []
 	ages = []
 	orientations = []
@@ -78,13 +98,26 @@ class RedditUser:
 								"person","enthusiast","fanboy","player","advocate", # These make sense only when accompanied by at least another noun
 							]
 
-	#common_attribute_endings = ("er","ic","an","st","nt","rt","at","or","ie","ac","ct","ar")
 	include_attribute_endings = ("er","or","ar","ist","an","ert","ese","te")
 	exclude_attribute_endings = ("ing","fucker")
 
 
 	def __init__(self,username):
 		self.username = username
+		self.signup_date, self.link_karma, self.comment_karma = self.get_about()
+		
+		now = datetime.datetime.now(tz=pytz.utc)
+		today = now.date()
+
+		signup_date = self.signup_date.date()
+
+		self.activity_by_month = [{"date":(y,m), "comments":0, "submissions":0, "comment_karma":0, "submission_karma":0} \
+								  for (y,m) in sorted(list(set([((today-datetime.timedelta(days=x)).year,(today-datetime.timedelta(days=x)).month) for x in range(0,(today-signup_date).days)])))]
+		
+		self.activity_by_hour = [{"hour":h, "comments":0, "submissions":0, "comment_karma":0, "submission_karma":0} for h in range(0,24)]
+
+		self.activity_by_weekday = [{"weekday":w, "comments":0, "submissions":0, "comment_karma":0, "submission_karma":0} for w in range(0,7)]
+
 
 	def __str__(self):
 		text_rep =  "-"*80 + "\n"
@@ -165,12 +198,12 @@ class RedditUser:
 			text_rep += "more actions:\n%s\n\n" % most_common(self.more_actions)
 		
 		if self.commented_subreddits:
-			text_rep += "commented subreddits:\n%s\n\n" % most_common(self.commented_subreddits)
+			#text_rep += "commented subreddits:\n%s\n\n" % most_common(self.commented_subreddits)
 			text_rep += "comment interests:\n%s\n\n" % most_common(self.comment_interests)
 			text_rep += "commented subreddit attributes:\n%s\n\n" % most_common(self.commented_subreddit_attributes)
 
 		if self.submitted_subreddits:
-			text_rep += "submitted subreddits:\n%s\n\n" % most_common(self.submitted_subreddits)
+			#text_rep += "submitted subreddits:\n%s\n\n" % most_common(self.submitted_subreddits)
 			text_rep += "submit interests:\n%s\n\n" % most_common(self.submit_interests)
 			text_rep += "submitted subreddit attributes:\n%s\n\n" % most_common(self.submitted_subreddit_attributes)
 		
@@ -178,6 +211,7 @@ class RedditUser:
 		text_rep += "-"*80 + "\n"
 		
 		return text_rep
+
 		
 	def sanitize_comment(self, comment):
 		body = " ".join([l for l in comment["body"].split("\n") if not l.startswith("&gt;")])
@@ -185,7 +219,7 @@ class RedditUser:
 			(r"\[(.*?)\]\((.*?)\)", r""), 	# Remove links from Markdown
 			(r"[\"\“](.*?)[\"\”]", r""), 	# Remove text within quotes
 			(r" \'(.*?)\ '", r""),			# Remove text within quotes
-			(r"\.+?", r". "), 				# Remove ellipses
+			(r"\.+", r"."), 				# Remove ellipses
 			(r"\(.*?\)", r""), 				# Remove text within round brackets
 			(r"&amp;",r"&"),				# Decode HTML entities
 			(r"http.?:\S+\b",r" ")			# Remove URLs
@@ -194,17 +228,165 @@ class RedditUser:
 			body = re.sub(original, rep, body, flags=re.I)
 		return body
 
+
+	def stats(self):
+		signup_date, link_karma, comment_karma = self.get_about()
+
+		total_comments = self.total_comments()
+		total_default_comments = self.total_default_comments()
+		
+		total_submissions = self.total_submissions()
+		total_default_submissions = self.total_default_submissions()
+
+		print "Stats:"
+		print "Total comments: %d" % total_comments
+		print "Total default comments: %d" % total_default_comments
+		print "Total submissions: %d" % total_submissions
+		print "Total default submission: %d" % total_default_submissions
+		
+		activity_by_month = []
+		for d in self.activity_by_month:
+			activity_by_month.append({
+				"date":"%d-%02d-01"%(d["date"][0],d["date"][1]), 
+				"comments":d["comments"], 
+				"submissions":d["submissions"],
+				"comment_karma":d["comment_karma"],
+				"submission_karma":d["submission_karma"]
+			})
+
+		activity_by_hour = []
+		for h in self.activity_by_hour:
+			activity_by_hour.append({
+				"hour":h["hour"], 
+				"comments":h["comments"], 
+				"submissions":h["submissions"],
+				"comment_karma":h["comment_karma"],
+				"submission_karma":h["submission_karma"]
+			})
+
+		weekdays = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
+		
+		activity_by_weekday = []
+		for w in self.activity_by_weekday:
+			activity_by_weekday.append({
+				"weekday":weekdays[w["weekday"]], 
+				"comments":w["comments"], 
+				"submissions":w["submissions"],
+				"comment_karma":w["comment_karma"],
+				"submission_karma":w["submission_karma"]
+			})
+
+		activity_by_subreddits = {"name":"All", "children":[]}
+		for (name,[com,comk]) in \
+			[(s,[sum(x) for x in zip(*[(1,r[2]) for r in group])]) for s, group in groupby(sorted(self.commented_subreddits, key=lambda x: x[0]),lambda x: x[0])]:
+			subreddit = ([s for s in subreddits if s["name"]==name] or [None])[0]
+			i1 = None
+			if subreddit:
+				i1 = subreddit["i1"]
+			else:
+				i1 = "Other"
+			if activity_by_subreddits["children"] and i1 in [i["name"] for i in activity_by_subreddits["children"]]:
+				for interest in activity_by_subreddits["children"]:
+					if interest["name"]==i1:
+						interest["children"].append({
+							"name":name,
+							"comments":com,
+							"comment_karma":comk,
+							"submissions":0,
+							"submission_karma":0
+						})
+						break
+			else:
+				activity_by_subreddits["children"].append({"name":i1, "children":[{
+					"name":name,
+					"comments":com,
+					"comment_karma":comk,
+					"submissions":0,
+					"submission_karma":0
+				}]})
+
+		for (name,[sub,subk]) in \
+			[(s,[sum(x) for x in zip(*[(1,r[2]) for r in group])]) for s, group in groupby(sorted(self.submitted_subreddits, key=lambda x: x[0]),lambda x: x[0])]:
+			subreddit = ([s for s in subreddits if s["name"]==name] or [None])[0]
+			if subreddit:
+				i1 = subreddit["i1"]
+			else:
+				i1 = "Other"
+			if activity_by_subreddits["children"] and i1 in [i["name"] for i in activity_by_subreddits["children"]]:
+				for interest in activity_by_subreddits["children"]:
+					if interest["name"]==i1:
+						for x, s in enumerate(interest["children"]):
+							if s["name"] == name:
+								s["submissions"]=sub
+								s["submission_karma"]=subk
+								interest["children"][x]=s
+								break
+						break
+			else:
+				activity_by_subreddits["children"].append({"name":i1, "children":[{
+					"name":name,
+					"comments":0,
+					"comment_karma":0,
+					"submissions":sub,
+					"submission_karma":subk
+				}]})
+
+		json_data = {
+			"about": {
+				"signup_date": signup_date.strftime("%m/%d/%Y"),
+				"link_karma": link_karma,
+				"comment_karma": comment_karma,
+				"comments": {
+					"total": total_comments,
+					"default": total_default_comments,
+					"best": {
+						"body":self.sanitize_comment(self.best_comment),
+						"permalink":self.permalink(self.best_comment)
+					},
+					"worst": {
+						"body":self.sanitize_comment(self.worst_comment),
+						"permalink":self.permalink(self.worst_comment)
+					}
+				},
+				"submissions": {
+					"total": total_submissions,
+					"default": total_default_submissions,
+					"best": {
+						"title":self.best_submission["title"],
+						"permalink":self.best_submission["permalink"]
+					},
+					"worst": {
+						"title":self.worst_submission["title"],
+						"permalink":self.worst_submission["permalink"]
+					}
+				}
+			},
+			"activity": {
+				"month": activity_by_month,
+				"hour": activity_by_hour,
+				"weekday": activity_by_weekday,
+				"subreddits": activity_by_subreddits
+			}
+		}
+
+		return json.dumps(json_data)
+
+
 	def total_comments(self):
-		return sum([c for _,c in Counter([v for v,_ in self.commented_subreddits]).most_common()])
+		return sum([c for _,c in Counter([v for v,_,_ in self.commented_subreddits]).most_common()])
+
 
 	def total_default_comments(self):
-		return sum([c for _,c in Counter([v for v,_ in self.commented_subreddits if v in default_subs]).most_common()])
+		return sum([c for _,c in Counter([v for v,_,_ in self.commented_subreddits if v in default_subs]).most_common()])
+
 
 	def total_submissions(self):
-		return sum([c for _,c in Counter([v for v,_ in self.submitted_subreddits]).most_common()])
+		return sum([c for _,c in Counter([v for v,_,_ in self.submitted_subreddits]).most_common()])
+
 
 	def total_default_submissions(self):
-		return sum([c for _,c in Counter([v for v,_ in self.submitted_subreddits if v in default_subs]).most_common()])
+		return sum([c for _,c in Counter([v for v,_,_ in self.submitted_subreddits if v in default_subs]).most_common()])
+
 
 	def gender(self):
 		if self.genders:
@@ -213,6 +395,14 @@ class RedditUser:
 		else:
 			return None
 
+
+	def get_about(self):
+		url = r"http://www.reddit.com/user/%s/about.json" % self.username
+		response = requests.get(url,headers=headers)
+		response_json = response.json()
+		return (datetime.datetime.fromtimestamp(response_json["data"]["created_utc"],tz=pytz.utc),response_json["data"]["link_karma"],response_json["data"]["comment_karma"])
+
+
 	def get_comments(self,limit=None):
 		comments = []
 		more_comments = True
@@ -220,30 +410,44 @@ class RedditUser:
 		base_url = r"http://www.reddit.com/user/%s/comments/.json?limit=100" % self.username
 		url = base_url
 		while more_comments:
-			request = requests.get(url,headers=headers)
-			response = request.json()
+			response = requests.get(url,headers=headers)
+			response_json = response.json()
 
 			# TODO - Error handling for user not found (404) and rate limiting (429)
 			
-			for child in response["data"]["children"]:
+			for child in response_json["data"]["children"]:
 				subreddit = child["data"]["subreddit"].encode("ascii","ignore").lower()
 				body = child["data"]["body"].encode("ascii","ignore")
 				link_id = child["data"]["link_id"].encode("ascii","ignore").lower()[3:]
 				comment_id = child["data"]["id"].encode("ascii","ignore")
-				top_level = True if child["data"]["parent_id"].startswith("t3") else False
 				created_utc = child["data"]["created_utc"]
-				
-				comments.append({"subreddit":subreddit, "body":body, "link_id":link_id, "comment_id":comment_id, "top_level":top_level, "created_utc":created_utc})
 
-			after = response["data"]["after"]
+				# Following attributes not in batch1 files
+				score = child["data"]["score"]
+				edited = child["data"]["edited"]
+				top_level = True if child["data"]["parent_id"].startswith("t3") else False
+				
+				comments.append({
+					"subreddit":subreddit,
+					"body":body,
+					"link_id":link_id,
+					"comment_id":comment_id,
+					"created_utc":created_utc,
+					"score":int(score),
+					"edited":edited,
+					"top_level":top_level
+				})
+
+			after = response_json["data"]["after"]
 
 			if after:
 				url = base_url + "&after=%s" % after
-				time.sleep(3)
+				time.sleep(2)
 			else:
 				more_comments = False
 
 		return comments
+
 
 	def get_submissions(self,limit=None):
 		submissions = []
@@ -252,36 +456,46 @@ class RedditUser:
 		base_url = r"http://www.reddit.com/user/%s/submitted/.json?limit=100" % self.username
 		url = base_url
 		while more_submissions:
-			request = requests.get(url,headers=headers)
-			response = request.json()
+			response = requests.get(url,headers=headers)
+			response_json = response.json()
 
 			# TODO - Error handling for user not found (404) and rate limiting (429)
 			
-			for child in response["data"]["children"]:
+			for child in response_json["data"]["children"]:
 				subreddit = child["data"]["subreddit"].encode("ascii","ignore").lower()
 				title = child["data"]["title"].encode("ascii","ignore")
 				url = child["data"]["url"].encode("ascii","ignore").lower()
 				selftext = child["data"]["selftext"].encode("ascii","ignore").lower()
-				permalink = child["data"]["permalink"].encode("ascii","ignore").lower()
+				permalink = "http://www.reddit.com"+child["data"]["permalink"].encode("ascii","ignore").lower()
 				created_utc = child["data"]["created_utc"]
+				score = child["data"]["score"]
 
-				submissions.append({"subreddit":subreddit, "title":title, "url":url, "selftext":selftext, "permalink":permalink, "created_utc":created_utc})
+				submissions.append({
+					"subreddit":subreddit, 
+					"title":title, "url":url, 
+					"selftext":selftext, 
+					"permalink":permalink, 
+					"created_utc":created_utc, 
+					"score":int(score)
+				})
 
-			after = response["data"]["after"]
+			after = response_json["data"]["after"]
 
 			if after:
 				url = base_url + "&after=%s" % after
-				time.sleep(3)
+				time.sleep(2)
 			else:
 				more_submissions = False
 
 		return submissions
+
 
 	def permalink(self, comment):
 		subreddit = comment["subreddit"]
 		link_id = comment["link_id"]
 		comment_id = comment["comment_id"]
 		return "http://www.reddit.com/r/%s/comments/%s/_/%s" % (subreddit, link_id, comment_id)
+
 
 	def load_attributes(self, chunk, comment):
 		if chunk["kind"] == "possession" and chunk["noun_phrase"]:
@@ -404,9 +618,9 @@ class RedditUser:
 				self.misc_favorites.append((full_noun_phrase, self.permalink(comment)))
 
 			elif norm_nouns:
-				#more_actions = verb_phrase_text + "-" + " ".join(prepositions) + "-" + noun_phrase_text + "-" + prep_noun_phrase_text
 				more_actions = " ".join(norm_verbs)
 				self.more_actions.append((more_actions, self.permalink(comment)))
+
 
 	def derive_attributes(self):
 		if not self.genders and "wife" in [v for v,s in self.relationship_partners]:
@@ -414,8 +628,38 @@ class RedditUser:
 		elif not self.genders and "husband" in [v for v,s in self.relationship_partners]:
 			self.genders.append(("female","derived"))
 
+
 	def process_comment(self, comment):
-		self.commented_subreddits.append((comment["subreddit"],self.permalink(comment)))
+		self.commented_subreddits.append((comment["subreddit"],self.permalink(comment),comment["score"]))
+		self.corpus += comment["body"]
+
+		comment_timestamp = datetime.datetime.fromtimestamp(comment["created_utc"],tz=pytz.utc)
+		
+		for i,d in enumerate(self.activity_by_month):
+			if d["date"]==(comment_timestamp.date().year, comment_timestamp.date().month):
+				d["comments"]+=1
+				d["comment_karma"]+=comment["score"]
+				self.activity_by_month[i]=d
+				break
+
+		for i,h in enumerate(self.activity_by_hour):
+			if h["hour"]==comment_timestamp.hour:
+				h["comments"]+=1
+				h["comment_karma"]+=comment["score"]
+				self.activity_by_hour[i]=h
+				break
+
+		for i,w in enumerate(self.activity_by_weekday):
+			if w["weekday"]==comment_timestamp.date().weekday():
+				w["comments"]+=1
+				w["comment_karma"]+=comment["score"]
+				self.activity_by_weekday[i]=w
+				break
+
+		if comment["score"] > self.best_comment["score"]:
+			self.best_comment = comment
+		elif comment["score"] < self.worst_comment["score"]:
+			self.worst_comment = comment
 
 		subreddit = ([s for s in subreddits if s["name"]==comment["subreddit"]] or [None])[0]
 
@@ -440,9 +684,7 @@ class RedditUser:
 		if comment["subreddit"].lower() in ignore_comments_subs:
 			return False
 
-		comment["body"] = self.sanitize_comment(comment)
-
-		self.corpus += comment["body"]
+		comment["body"] = self.sanitize_comment(comment)		
 
 		if not re.search(r"\b(i|my)\b",comment["body"],re.I):
 			return False
@@ -455,8 +697,37 @@ class RedditUser:
 		
 		return True
 
+
 	def process_submission(self, submission):
-		self.submitted_subreddits.append((submission["subreddit"], submission["permalink"]))
+		self.submitted_subreddits.append((submission["subreddit"], submission["permalink"], submission["score"]))
+
+		submission_timestamp = datetime.datetime.fromtimestamp(submission["created_utc"],tz=pytz.utc)
+
+		for i,d in enumerate(self.activity_by_month):
+			if d["date"]==(submission_timestamp.date().year, submission_timestamp.date().month):
+				d["submissions"]+=1
+				d["submission_karma"]+=submission["score"]
+				self.activity_by_month[i]=d
+				break
+
+		for i,h in enumerate(self.activity_by_hour):
+			if h["hour"]==submission_timestamp.hour:
+				h["submissions"]+=1
+				h["submission_karma"]+=submission["score"]
+				self.activity_by_hour[i]=h
+				break
+
+		for i,w in enumerate(self.activity_by_weekday):
+			if w["weekday"]==submission_timestamp.date().weekday():
+				w["submissions"]+=1
+				w["submission_karma"]+=submission["score"]
+				self.activity_by_weekday[i]=w
+				break
+
+		if submission["score"] > self.best_submission["score"]:
+			self.best_submission = submission
+		elif submission["score"] < self.worst_submission["score"]:
+			self.worst_submission = submission
 		
 		subreddit = ([s for s in subreddits if (s["name"]==submission["subreddit"] and s["ignore_interest"]!="Ignore")] or [None])[0]
 
@@ -475,17 +746,34 @@ class RedditUser:
 		
 		return True
 
+
 	def process_all_comments(self):
-		for comment in self.get_comments():
+		comments = self.get_comments()
+		
+		self.earliest_comment = comments[-1]
+		self.latest_comment = comments[0]
+
+		self.best_comment = comments[0]
+		self.worst_comment = comments[0]
+
+		for comment in comments:
 			self.process_comment(comment)
 
 		self.derive_attributes()
 
+
 	def process_all_submissions(self):
+		submissions = self.get_submissions();
+
+		self.earliest_submission = submissions[-1]
+		self.latest_submission = submissions[0]
+
+		self.best_submission = submissions[0]
+		self.worst_submission = submissions[0]
+
 		for submission in self.get_submissions():
 			self.process_submission(submission)
 
-		self.derive_attributes()
 
 	def save_comments_to_file(self):
 		comments_file = csv.writer(open("data/comments_%s.csv" % self.username, "wb"), quoting=csv.QUOTE_ALL)
@@ -493,6 +781,7 @@ class RedditUser:
 		for comment in self.get_comments():
 			body = self.sanitize_comment(comment)
 			comments_file.writerow([comment["subreddit"], body, comment["link_id"], comment["comment_id"], comment["created_utc"]])
+
 
 	def process_comments_from_file(self):
 		c = 0
