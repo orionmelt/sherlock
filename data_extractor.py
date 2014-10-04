@@ -258,6 +258,9 @@ class DataExtractor:
 	def ngrams(self,text,n=2):
 		return [" ".join(w) for w in TextBlob(text).ngrams(n=n)]
 
+	def noun_phrases(self, text):
+		return TextBlob(text).noun_phrases
+
 	@staticmethod
 	def test_sentence(sentence):
 		print TextBlob(sentence).tags
