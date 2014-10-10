@@ -217,7 +217,7 @@ class RedditUser:
 		body = " ".join([l for l in comment["body"].split("\n") if not l.startswith("&gt;")])
 		substitutions = [
 			(r"\[(.*?)\]\((.*?)\)", r""), 	# Remove links from Markdown
-			(r"[\"\“](.*?)[\"\”]", r""), 	# Remove text within quotes
+			(r"[\"](.*?)[\"]", r""), 		# Remove text within quotes
 			(r" \'(.*?)\ '", r""),			# Remove text within quotes
 			(r"\.+", r"."), 				# Remove ellipses
 			(r"\(.*?\)", r""), 				# Remove text within round brackets
@@ -238,12 +238,6 @@ class RedditUser:
 		total_submissions = self.total_submissions()
 		total_default_submissions = self.total_default_submissions()
 
-		print "Stats:"
-		print "Total comments: %d" % total_comments
-		print "Total default comments: %d" % total_default_comments
-		print "Total submissions: %d" % total_submissions
-		print "Total default submission: %d" % total_default_submissions
-		
 		activity_by_month = []
 		for d in self.activity_by_month:
 			activity_by_month.append({
@@ -277,12 +271,17 @@ class RedditUser:
 			})
 
 		activity_by_subreddits = {"name":"All", "children":[]}
+
 		for (name,[com,comk]) in \
 			[(s,[sum(x) for x in zip(*[(1,r[2]) for r in group])]) for s, group in groupby(sorted(self.commented_subreddits, key=lambda x: x[0]),lambda x: x[0])]:
 			subreddit = ([s for s in subreddits if s["name"]==name] or [None])[0]
 			i1 = None
+			i2 = None
+			i3 = None
 			if subreddit:
 				i1 = subreddit["i1"]
+				i2 = subreddit["i2"]
+				i3 = subreddit["i3"]
 			else:
 				i1 = "Other"
 			if activity_by_subreddits["children"] and i1 in [i["name"] for i in activity_by_subreddits["children"]]:
@@ -304,7 +303,7 @@ class RedditUser:
 					"submissions":0,
 					"submission_karma":0
 				}]})
-
+		
 		for (name,[sub,subk]) in \
 			[(s,[sum(x) for x in zip(*[(1,r[2]) for r in group])]) for s, group in groupby(sorted(self.submitted_subreddits, key=lambda x: x[0]),lambda x: x[0])]:
 			subreddit = ([s for s in subreddits if s["name"]==name] or [None])[0]
@@ -331,8 +330,148 @@ class RedditUser:
 					"submission_karma":subk
 				}]})
 
+		
+		activity_by_topics = {"name":"All", "children":[]}
+
+		for v,c in Counter([v for v,s in self.comment_interests]).most_common():
+			interests = filter(None,v.split(">"))
+			current_node = activity_by_topics
+			for i, interest in enumerate(interests):
+				children = current_node["children"]
+				if i+1 < len(interests):
+					found_child = False
+					for child in children:
+						if child["name"]==interest:
+							child_node = child
+							found_child = True
+							break
+					if not found_child:
+						child_node = {"name": interest, "children": []}
+						children.append(child_node)
+					current_node = child_node
+				else:
+					child_node = {"name": interest, "size": c}
+					children.append(child_node)		
+
+		gender = self.gender()
+
+		ages = []
+		for v,c in Counter([v for v,s in self.ages]).most_common():
+			ages.append({"value":v, "count":c})
+
+		core_places_lived = []
+		for v,c in Counter([v for v,s in self.core_places_lived]).most_common():
+			core_places_lived.append({"value":v, "count":c})
+
+		more_places_lived = []
+		for v,c in Counter([v for v,s in self.more_places_lived]).most_common():
+			more_places_lived.append({"value":v, "count":c})
+
+		core_places_grew = []
+		for v,c in Counter([v for v,s in self.core_places_grew]).most_common():
+			core_places_grew.append({"value":v, "count":c})
+
+		more_places_grew = []
+		for v,c in Counter([v for v,s in self.more_places_grew]).most_common():
+			more_places_grew.append({"value":v, "count":c})
+
+		more_places_grew = []
+		for v,c in Counter([v for v,s in self.more_places_grew]).most_common():
+			more_places_grew.append({"value":v, "count":c})
+
+		orientations = []
+		for v,c in Counter([v for v,s in self.orientations]).most_common():
+			orientations.append({"value":v, "count":c})
+
+		family_members = []
+		for v,c in Counter([v for v,s in self.family_members]).most_common():
+			family_members.append({"value":v, "count":c})
+
+		relationship_partners = []
+		for v,c in Counter([v for v,s in self.relationship_partners]).most_common():
+			relationship_partners.append({"value":v, "count":c})
+
+		locations = []
+		for v,c in Counter([v for v,s in self.locations]).most_common():
+			locations.append({"value":v, "count":c})
+
+		pets = []
+		for v,c in Counter([v for v,s in self.pets]).most_common():
+			pets.append({"value":v, "count":c})
+
+		hobbies = []
+		for v,c in Counter([v for v,s in self.hobbies]).most_common():
+			hobbies.append({"value":v, "count":c})
+
+		tv_shows = []
+		for v,c in Counter([v for v,s in self.tv_shows]).most_common():
+			tv_shows.append({"value":v, "count":c})
+
+		misc_favorites = []
+		for v,c in Counter([v for v,s in self.misc_favorites]).most_common():
+			misc_favorites.append({"value":v, "count":c})
+
+		core_attributes = []
+		for v,c in Counter([v for v,s in self.core_attributes]).most_common():
+			core_attributes.append({"value":v, "count":c})
+
+		more_attributes = []
+		for v,c in Counter([v for v,s in self.more_attributes]).most_common():
+			more_attributes.append({"value":v, "count":c})
+
+		core_possessions = []
+		for v,c in Counter([v for v,s in self.core_possessions]).most_common():
+			core_possessions.append({"value":v, "count":c})
+
+		more_possessions = []
+		for v,c in Counter([v for v,s in self.more_possessions]).most_common():
+			more_possessions.append({"value":v, "count":c})
+
+		core_actions = []
+		for v,c in Counter([v for v,s in self.core_actions]).most_common():
+			core_actions.append({"value":v, "count":c})
+
+		more_actions = []
+		for v,c in Counter([v for v,s in self.more_actions]).most_common():
+			more_actions.append({"value":v, "count":c})
+
+		common_words = [{"text":word, "size":count} for word, count in Counter(extractor.common_words(self.corpus)).most_common(200)]
+
 		json_data = {
+			"username": self.username,
 			"about": {
+				"gender": gender,
+				"ages": ages,
+				"places_lived": {
+					"core":core_places_lived,
+					"more":more_places_lived
+				},
+				"places_grew": {
+					"core":core_places_grew,
+					"more":more_places_grew
+				},
+				"orientations": orientations,
+				"family_members": family_members,
+				"relationship_partners": relationship_partners,
+				"locations": locations,
+				"pets": pets,
+				"hobbies": hobbies,
+				"tv_shows": tv_shows,
+				"misc_favorites": misc_favorites,
+				"attributes": {
+					"core": core_attributes,
+					"more": more_attributes
+				},
+				"possessions": {
+					"core": core_possessions,
+					"more": more_possessions
+				},
+				"actions": {
+					"core": core_actions,
+					"more": more_actions
+				}
+			},
+			"stats": {
 				"signup_date": signup_date.strftime("%m/%d/%Y"),
 				"link_karma": link_karma,
 				"comment_karma": comment_karma,
@@ -340,11 +479,13 @@ class RedditUser:
 					"total": total_comments,
 					"default": total_default_comments,
 					"best": {
-						"body":self.sanitize_comment(self.best_comment),
+						#"body":self.sanitize_comment(self.best_comment),
+						"body":self.best_comment["body"],
 						"permalink":self.permalink(self.best_comment)
 					},
 					"worst": {
-						"body":self.sanitize_comment(self.worst_comment),
+						#"body":self.sanitize_comment(self.worst_comment),
+						"body":self.worst_comment["body"],
 						"permalink":self.permalink(self.worst_comment)
 					}
 				},
@@ -365,8 +506,10 @@ class RedditUser:
 				"month": activity_by_month,
 				"hour": activity_by_hour,
 				"weekday": activity_by_weekday,
-				"subreddits": activity_by_subreddits
-			}
+				"subreddits": activity_by_subreddits,
+				"topics": activity_by_topics
+			},
+			"common_words": common_words
 		}
 
 		return json.dumps(json_data)
@@ -442,7 +585,7 @@ class RedditUser:
 
 			if after:
 				url = base_url + "&after=%s" % after
-				time.sleep(2)
+				#time.sleep(2)
 			else:
 				more_comments = False
 
@@ -483,7 +626,7 @@ class RedditUser:
 
 			if after:
 				url = base_url + "&after=%s" % after
-				time.sleep(2)
+				#time.sleep(2)
 			else:
 				more_submissions = False
 
@@ -631,7 +774,7 @@ class RedditUser:
 
 	def process_comment(self, comment):
 		self.commented_subreddits.append((comment["subreddit"],self.permalink(comment),comment["score"]))
-		self.corpus += comment["body"]
+		self.corpus += self.sanitize_comment(comment).lower()
 
 		comment_timestamp = datetime.datetime.fromtimestamp(comment["created_utc"],tz=pytz.utc)
 		
@@ -666,7 +809,7 @@ class RedditUser:
 		if subreddit:
 			if subreddit["i1"].lower()=="location":
 				self.locations.append((subreddit["i3"], self.permalink(comment)))
-			elif subreddit["i1"].lower()=="entertainment" and subreddit["i2"].lower()=="tv" and subreddit["i3"]:
+			elif subreddit["i1"].lower()=="entertainment" and subreddit["i2"].lower()=="tv" and subreddit["i3"] and subreddit["i3"] != "General":
 				self.tv_shows.append((subreddit["i3"], self.permalink(comment)))
 			elif subreddit["i1"].lower()=="hobbies":
 				self.hobbies.append((subreddit["i3"] or subreddit["i2"], self.permalink(comment)))
@@ -679,12 +822,12 @@ class RedditUser:
 			if subreddit["attribute"]:
 				self.commented_subreddit_attributes.append((subreddit["attribute"]+":::"+subreddit["value"], self.permalink(comment)))
 		else:
-			self.comment_interests.append(("Unkown", self.permalink(comment)))
+			self.comment_interests.append(("Other", self.permalink(comment)))
 
 		if comment["subreddit"].lower() in ignore_comments_subs:
 			return False
 
-		comment["body"] = self.sanitize_comment(comment)		
+		comment["body"] = self.sanitize_comment(comment)
 
 		if not re.search(r"\b(i|my)\b",comment["body"],re.I):
 			return False
@@ -734,7 +877,7 @@ class RedditUser:
 		if subreddit:
 			if subreddit["i1"].lower()=="location":
 				self.locations.append((subreddit["i3"], submission["permalink"]))
-			elif subreddit["i1"].lower()=="entertainment" and subreddit["i2"].lower()=="tv" and subreddit["i3"]:
+			elif subreddit["i1"].lower()=="entertainment" and subreddit["i2"].lower()=="tv" and subreddit["i3"] and subreddit["i3"] != "General":
 				self.tv_shows.append((subreddit["i3"], submission["permalink"]))
 			elif subreddit["i1"].lower()=="hobbies":
 				self.hobbies.append((subreddit["i3"] or subreddit["i2"], submission["permalink"]))
@@ -749,6 +892,9 @@ class RedditUser:
 
 	def process_all_comments(self):
 		comments = self.get_comments()
+
+		if not comments:
+			return
 		
 		self.earliest_comment = comments[-1]
 		self.latest_comment = comments[0]
@@ -764,6 +910,9 @@ class RedditUser:
 
 	def process_all_submissions(self):
 		submissions = self.get_submissions();
+
+		if not submissions:
+			return
 
 		self.earliest_submission = submissions[-1]
 		self.latest_submission = submissions[0]
