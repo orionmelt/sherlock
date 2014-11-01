@@ -751,55 +751,68 @@ class RedditUser:
 
 		core_places_lived = []
 		for value,count in Counter([value for value,source in self.core_places_lived]).most_common():
-			core_places_lived.append({"value":value, "count":count})
+			sources = [s for v,s in self.core_places_lived if v==value]
+			core_places_lived.append({"value":value, "count":count, "sources":sources})
 
 		more_places_lived = []
 		for value,count in Counter([value for value,source in self.more_places_lived]).most_common():
-			more_places_lived.append({"value":value, "count":count})
+			sources = [s for v,s in self.more_places_lived if v==value]
+			more_places_lived.append({"value":value, "count":count, "sources":sources})
 
 		core_places_grew_up = []
 		for value,count in Counter([value for value,source in self.core_places_grew_up]).most_common():
-			core_places_grew_up.append({"value":value, "count":count})
+			sources = [s for v,s in self.core_places_grew_up if v==value]
+			core_places_grew_up.append({"value":value, "count":count, "sources":sources})
 
 		more_places_grew_up = []
 		for value,count in Counter([value for value,source in self.more_places_grew_up]).most_common():
-			more_places_grew_up.append({"value":value, "count":count})
+			sources = [s for v,s in self.more_places_grew_up if v==value]
+			more_places_grew_up.append({"value":value, "count":count, "sources":sources})
 
 		family_members = []
 		for value,count in Counter([value for value,source in self.family_members]).most_common():
-			family_members.append({"value":value, "count":count})
+			sources = [s for v,s in self.family_members if v==value]
+			family_members.append({"value":value, "count":count, "sources":sources})
 
 		pets = []
 		for value,count in Counter([value for value,source in self.pets]).most_common():
-			pets.append({"value":value, "count":count})		
+			sources = [s for v,s in self.pets if v==value]
+			pets.append({"value":value, "count":count, "sources":sources})
 
 		favorites = []
 		for value,count in Counter([value for value,source in self.favorites]).most_common():
-			favorites.append({"value":value, "count":count})			
+			sources = [s for v,s in self.favorites if v==value]
+			favorites.append({"value":value, "count":count, "sources":sources})
 
 		core_attributes = []
 		for value,count in Counter([value for value,source in self.core_attributes]).most_common():
-			core_attributes.append({"value":value, "count":count})
+			sources = [s for v,s in self.core_attributes if v==value]
+			core_attributes.append({"value":value, "count":count, "sources":sources})
 
 		more_attributes = []
 		for value,count in Counter([value for value,source in self.more_attributes]).most_common():
-			more_attributes.append({"value":value, "count":count})
+			sources = [s for v,s in self.more_attributes if v==value]
+			more_attributes.append({"value":value, "count":count, "sources":sources})
 
 		core_possessions = []
 		for value,count in Counter([value for value,source in self.core_possessions]).most_common():
-			core_possessions.append({"value":value, "count":count})
+			sources = [s for v,s in self.core_possessions if v==value]
+			core_possessions.append({"value":value, "count":count, "sources":sources})
 
 		more_possessions = []
 		for value,count in Counter([value for value,source in self.more_possessions]).most_common():
-			more_possessions.append({"value":value, "count":count})
+			sources = [s for v,s in self.more_possessions if v==value]
+			more_possessions.append({"value":value, "count":count, "sources":sources})
 				
 		core_actions = []
 		for value,count in Counter([value for value,source in self.core_actions]).most_common():
-			core_actions.append({"value":value, "count":count})
+			sources = [s for v,s in self.core_actions if v==value]
+			core_actions.append({"value":value, "count":count, "sources":sources})
 
 		more_actions = []
 		for value,count in Counter([value for value,source in self.more_actions]).most_common():
-			more_actions.append({"value":value, "count":count})
+			sources = [s for v,s in self.more_actions if v==value]
+			more_actions.append({"value":value, "count":count, "sources":sources})
 
 		# "Interesting" attributes
 		locations = []
