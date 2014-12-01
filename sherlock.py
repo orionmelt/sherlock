@@ -3,6 +3,7 @@
 import sys, datetime, getopt
 from reddit_user import RedditUser
 
+'''
 longopts, shortopts = getopt.getopt(sys.argv[2:], shortopts="", longopts=["file="])
 args = dict(longopts)
 
@@ -34,4 +35,13 @@ with open("results/%s.txt" % u.username,"w") as o:
 print
 print u
 print u.stats()
-print "\nProcessing complete... %s" % (datetime.datetime.now()-start)
+'''
+
+start = datetime.datetime.now()
+u = RedditUser(sys.argv[1])
+u.process()
+print "Processing user %s" % u.username
+print len(u.comments)
+print len(u.submissions)
+print u
+print "Processing complete... %s" % (datetime.datetime.now()-start)
