@@ -96,8 +96,8 @@ class DataExtractor:
 	skip_attributes = 		[
 								"supporter","believer","gender","backer","sucker","chapter","passenger","super","water","sitter",
 								"killer","stranger","monster","leather","holder","creeper","shower","member","wonder","hungover",
-								"sniper","silver","beginner","lurker","loser","number","stupider",
-								"door","liquor",
+								"sniper","silver","beginner","lurker","loser","number","stupider","outlier",
+								"door","liquor","traitor",
 								"year","ear","liar",
 								"rapist","racist",
 								"satan","batman","veteran",
@@ -123,10 +123,10 @@ class DataExtractor:
 	  _N0:
 	  		{(<DT>*<JJ>*<NN.*>+(?!<POS>))+}
 	  _N:
-	  		{<_N0>+(<CC>+<_N0>)*}
+	  		{<_N0>+(<CC><_N0>)*}
 	  										# determiner adjective noun(s) (a beautiful house / the strongest fighter)
 	  _N_PREP_N:
-	  		{<_N>(<TO>|<IN>)<_N>}			# to/in noun ((newcomer) to physics / (big fan) of Queen / (newbie) in gaming )
+	  		{<_N>((<TO>|<IN>)<_N>)+}		# to/in noun ((newcomer) to physics / (big fan) of Queen / (newbie) in gaming )
 	  POSS: 
 	        {<PRP\$><_N>}					# My adjective noun/s (My awesome phone)
 	  ACT1:
