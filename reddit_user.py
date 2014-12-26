@@ -80,7 +80,7 @@ class Submission(Post):
 
 class RedditUser:
 	# Constants
-	MIN_THRESHOLD = 2
+	MIN_THRESHOLD = 3
 	HEADERS = {
 	    'User-Agent': 'Sherlock v0.1 by /u/orionmelt'
 	}
@@ -138,6 +138,7 @@ class RedditUser:
 
 	favorites = []
 
+
 	sentiments = []
 
 	derived_attributes = {
@@ -151,7 +152,6 @@ class RedditUser:
 		"political_view": [],
 		"family_members": [],
 		"religion": [],
-		"drugs": [],
 		"pets": [],
 		"physical_characteristics": [],
 		"race": [],
@@ -852,6 +852,9 @@ class RedditUser:
 		tv_shows = []
 		interests = []
 		games = []
+		sports = []
+		music = []
+		drugs = []
 
 		for topic, count in Counter(topics).most_common():
 			level_topics = filter(None,topic.split(">"))
@@ -877,6 +880,25 @@ class RedditUser:
 					level_topics[2]=None
 				if count>=self.MIN_THRESHOLD:
 					games.append({"value":(level_topics[2] or level_topics[1]).lower(), "count":count})
+
+			# Sports
+			if len(level_topics)==3 and level_topics[0].lower()=="sports":
+				if level_topics[2].lower()=="general":
+					level_topics[2]=None
+				if count>=self.MIN_THRESHOLD:
+					sports.append({"value":(level_topics[2] or level_topics[1]).lower(), "count":count})
+
+			# Music
+			if len(level_topics)==3 and level_topics[0].lower()=="music":
+				if level_topics[2].lower()=="general":
+					level_topics[2]=None
+				if count>=self.MIN_THRESHOLD:
+					music.append({"value":(level_topics[2] or level_topics[1]).lower(), "count":count})
+
+			# Drugs
+			if len(level_topics)==3 and level_topics[0].lower()=="drugs" and level_topics[2].lower()!="general" and count>=self.MIN_THRESHOLD:
+				if count>=self.MIN_THRESHOLD:
+					drugs.append({"value":(level_topics[2], "count":count})
 
 		results = {
 			"username": self.username,
@@ -906,19 +928,20 @@ class RedditUser:
 				"tv_shows": tv_shows,
 				"interests": interests,
 				"games": games,
+				"sports": sports,
+				"music": music,
 				"locations": locations,
 				"derived_attributes": {
-					"age":Counter(self.derived_attributes["age"]).most_common(),
-					"gender":Counter(self.derived_attributes["gender"]).most_common(),
+					#"age":Counter(self.derived_attributes["age"]).most_common(1),
+					#"gender":Counter(self.derived_attributes["gender"]).most_common(1),
 					"locations":Counter(self.derived_attributes["locations"]).most_common(),
 					"gadgets":Counter(self.derived_attributes["gadgets"]).most_common(),
-					"orientation":Counter(self.derived_attributes["orientation"]).most_common(),
-					"relationship_status":Counter(self.derived_attributes["relationship_status"]).most_common(),
+					"orientation":Counter(self.derived_attributes["orientation"]).most_common(1),
+					"relationship_status":Counter(self.derived_attributes["relationship_status"]).most_common(1),
 					"possessions":Counter(self.derived_attributes["possessions"]).most_common(),
 					"political_view":Counter(self.derived_attributes["political_view"]).most_common(),
 					"family_members":Counter(self.derived_attributes["family_members"]).most_common(),
 					"religion":Counter(self.derived_attributes["religion"]).most_common(),
-					"drugs":Counter(self.derived_attributes["drugs"]).most_common(),
 					"pets":Counter(self.derived_attributes["pets"]).most_common(),
 					"physical_characteristics":Counter(self.derived_attributes["physical_characteristics"]).most_common(),
 					"race":Counter(self.derived_attributes["race"]).most_common(),
