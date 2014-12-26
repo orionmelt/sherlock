@@ -50,7 +50,7 @@ class DataExtractor:
 		(r"\b(im|i'm)\b", "i am"),
 		(r"\b(id|i'd)\b", "i would"),
 		(r"\b(i'll)\b", "i will"),
-		(r"\bbf\b", "boyfriend"),
+		(r"\bbf|b/f\b", "boyfriend"),
 		(r"\bgf|g/f\b", "girlfriend"),
 		(r"\byoure\b", "you are"),
 		(r"\b(dont|don't)\b", "do not"),
@@ -90,13 +90,13 @@ class DataExtractor:
 
 	# Skip if any of these is the *only* attribute
 	skip_lone_attributes = 	[
-								"fan","expert"
+								"fan","expert","person","advocate","customer",
 							]
 
 	skip_attributes = 		[
 								"supporter","believer","gender","backer","sucker","chapter","passenger","super","water","sitter",
 								"killer","stranger","monster","leather","holder","creeper","shower","member","wonder","hungover",
-								"sniper","silver","beginner","lurker","loser","number",
+								"sniper","silver","beginner","lurker","loser","number","stupider",
 								"door","liquor",
 								"year","ear","liar",
 								"rapist","racist",
@@ -106,7 +106,7 @@ class DataExtractor:
 
 	include_attributes = 	[
 								"geek","nerd","nurse","cook","student","consultant","mom","dad","marine","chef","sophomore","catholic",
-								"person","enthusiast","fanboy","player","advocate", # These make sense only when accompanied by at least another noun
+								#"person","enthusiast","fanboy","player","advocate", # These make sense only when accompanied by at least another noun
 							]
 
 	include_attribute_endings = ("er","or","ar","ist","an","ert","ese","te")
@@ -120,8 +120,11 @@ class DataExtractor:
 	grammar = r"""
 	  _VP:	
 	  		{<RB.*>*<V.*>+<RB.*>*}			# adverb* verb adverb* (really think / strongly suggest / look intensely)
+	  _N0:
+	  		{(<DT>*<JJ>*<NN.*>+(?!<POS>))+}
 	  _N:
-	  		{(<DT>*<JJ>*<NN.*>+(?!<POS>))+}	# determiner adjective noun(s) (a beautiful house / the strongest fighter)
+	  		{<_N0>+(<CC>+<_N0>)*}
+	  										# determiner adjective noun(s) (a beautiful house / the strongest fighter)
 	  _N_PREP_N:
 	  		{<_N>(<TO>|<IN>)<_N>}			# to/in noun ((newcomer) to physics / (big fan) of Queen / (newbie) in gaming )
 	  POSS: 
