@@ -140,6 +140,24 @@ class RedditUser:
 
 	sentiments = []
 
+	derived_attributes = {
+		"age": [],
+		"gender": [],
+		"locations": [],
+		"gadgets": [],
+		"orientation": [],
+		"relationship_status": [],
+		"possessions": [],
+		"political_view": [],
+		"family_members": [],
+		"religion": [],
+		"drugs": [],
+		"pets": [],
+		"physical_characteristics": [],
+		"race": [],
+		"nationality": []
+	}
+
 	corpus = ""
 	
 	
@@ -186,8 +204,10 @@ class RedditUser:
 		text += "Actions: %s\n" % ", ".join([action for (action, source) in self.core_actions])
 		text += "Favorites: %s\n" % ", ".join([favorite for (favorite, source) in self.favorites])
 
-		text += "Commented subreddits: %s\n" % ", ".join([str(t) for t in self.commented_subreddits()])
-		text += "Submitted subreddits: %s\n" % ", ".join([str(t) for t in self.submitted_subreddits()])
+		text += "Derived Attributes: %s\n" % str(self.derived_attributes)
+
+		#text += "Commented subreddits: %s\n" % ", ".join([str(t) for t in self.commented_subreddits()])
+		#text += "Submitted subreddits: %s\n" % ", ".join([str(t) for t in self.submitted_subreddits()])
 
 		text += "Results: %s\n" % self.results()
 
@@ -555,6 +575,19 @@ class RedditUser:
 
 
 	def derive_attributes(self):
+		for name,count in self.commented_subreddits():
+			subreddit = ([s for s in subreddits if s["name"]==name] or [None])[0]
+			if subreddit and subreddit["attribute"]:
+				self.derived_attributes[subreddit["attribute"]].append(subreddit["value"])
+				#print subreddit["value"]
+
+		for name,count in self.submitted_subreddits():
+			subreddit = ([s for s in subreddits if s["name"]==name] or [None])[0]
+			if subreddit and subreddit["attribute"]:
+				self.derived_attributes[subreddit["attribute"]].append(subreddit["value"])
+				#print subreddit["value"]
+
+
 		if not self._genders and "wife" in [v for v,s in self._relationship_partners]:
 			self._genders.append(("male","derived"))
 		elif not self._genders and "husband" in [v for v,s in self._relationship_partners]:
@@ -873,7 +906,24 @@ class RedditUser:
 				"tv_shows": tv_shows,
 				"interests": interests,
 				"games": games,
-				"locations": locations
+				"locations": locations,
+				"derived_attributes": {
+					"age":Counter(self.derived_attributes["age"]).most_common(),
+					"gender":Counter(self.derived_attributes["gender"]).most_common(),
+					"locations":Counter(self.derived_attributes["locations"]).most_common(),
+					"gadgets":Counter(self.derived_attributes["gadgets"]).most_common(),
+					"orientation":Counter(self.derived_attributes["orientation"]).most_common(),
+					"relationship_status":Counter(self.derived_attributes["relationship_status"]).most_common(),
+					"possessions":Counter(self.derived_attributes["possessions"]).most_common(),
+					"political_view":Counter(self.derived_attributes["political_view"]).most_common(),
+					"family_members":Counter(self.derived_attributes["family_members"]).most_common(),
+					"religion":Counter(self.derived_attributes["religion"]).most_common(),
+					"drugs":Counter(self.derived_attributes["drugs"]).most_common(),
+					"pets":Counter(self.derived_attributes["pets"]).most_common(),
+					"physical_characteristics":Counter(self.derived_attributes["physical_characteristics"]).most_common(),
+					"race":Counter(self.derived_attributes["race"]).most_common(),
+					"nationality":Counter(self.derived_attributes["nationality"]).most_common(),
+				}
 			},
 			"stats": {
 				"basic": {
