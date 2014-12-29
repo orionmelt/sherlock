@@ -102,6 +102,7 @@ class DataExtractor:
 								"rapist","racist",
 								"satan","batman","veteran",
 								"hypocrite","candidate",
+								"everything","everyone",
 							]
 
 	include_attributes = 	[
@@ -109,7 +110,7 @@ class DataExtractor:
 								#"person","enthusiast","fanboy","player","advocate", # These make sense only when accompanied by at least another noun
 							]
 
-	include_attribute_endings = ("er","or","ar","ist","an","ert","ese","te")
+	include_attribute_endings = ("er","or","ar","ist","an","ert","ese","te","ot")
 	exclude_attribute_endings = ("ing","fucker")
 
 	skip_verbs 			= ["were","think","guess","mean"]
