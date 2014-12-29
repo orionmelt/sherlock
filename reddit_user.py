@@ -1,10 +1,17 @@
 # -*- coding: utf-8 -*-
 
 import csv, datetime, re, requests, json, time, sys, pytz
-from subreddits import subreddits, ignore_text_subs, default_subs
 from collections import Counter
 from itertools import groupby
-from data_extractor import DataExtractor
+from urlparse import urlparse
+try:
+	from subreddits import subreddits, ignore_text_subs, default_subs
+except:
+	pass
+try:
+	from data_extractor import DataExtractor
+except:
+	pass
 
 extractor = DataExtractor()
 
@@ -26,6 +33,26 @@ class Util:
 			_text = re.sub(pattern, replacement, _text, flags=re.I)
 		return _text
 
+	@staticmethod
+	def coalesce(l):
+		return next(iter(l[::-1]), "")
+
+	@staticmethod
+	def ago(days):
+		y = days/365 if days>365 else 0
+		m = (days-y*365)/31 if days>30 else 0
+		d = (days-m*31-y*365)
+		yy = str(y) + " year" if y else ""
+		if y>1:
+			yy+="s"
+		mm = str(m) + " month" if m else ""
+		if m>1:
+			mm+="s"
+		dd = str(d) + " day"
+		if d>1 or d==0:
+			dd+="s"
+		return (yy+" "+mm+" "+dd).strip()
+
 
 # Base class for comments and submissions
 class Post(object):
@@ -41,14 +68,17 @@ class Post(object):
 	score = 0
 	# Permalink to post
 	permalink = None
+	# Gilded
+	gilded = 0
 
-	def __init__(self, id, subreddit, text, created_utc, score, permalink):
+	def __init__(self, id, subreddit, text, created_utc, score, permalink, gilded):
 		self.id = id
 		self.subreddit = subreddit
 		self.text = text
 		self.created_utc = created_utc
 		self.score = score
 		self.permalink = permalink
+		self.gilded = gilded
 		
 
 class Comment(Post):
@@ -59,8 +89,8 @@ class Comment(Post):
 	# Top-level flag
 	top_level = False
 
-	def __init__(self, id, subreddit, text, created_utc, score, permalink, submission_id, edited, top_level):
-		super(Comment,self).__init__(id, subreddit, text, created_utc, score, permalink)
+	def __init__(self, id, subreddit, text, created_utc, score, permalink, submission_id, edited, top_level, gilded):
+		super(Comment,self).__init__(id, subreddit, text, created_utc, score, permalink, gilded)
 		self.submission_id = submission_id
 		self.edited = edited
 		self.top_level = top_level
@@ -71,11 +101,17 @@ class Submission(Post):
 	url = None
 	# Submission title
 	title = None
+	# Self post?
+	is_self = None
+	# Domain
+	domain = None
 
-	def __init__(self, id, subreddit, text, created_utc, score, permalink, url, title):
-		super(Submission,self).__init__(id, subreddit, text, created_utc, score, permalink)
+	def __init__(self, id, subreddit, text, created_utc, score, permalink, url, title, is_self, gilded, domain):
+		super(Submission,self).__init__(id, subreddit, text, created_utc, score, permalink, gilded)
 		self.url = url
 		self.title = title
+		self.is_self = is_self
+		self.domain = domain
 
 
 class RedditUser:
@@ -85,6 +121,11 @@ class RedditUser:
 	    'User-Agent': 'Sherlock v0.1 by /u/orionmelt'
 	}
 
+	IMAGE_DOMAINS = ["imgur.com", "flickr.com"]
+	VIDEO_DOMAINS = ["youtube.com", "youtu.be", "vimeo.com", "liveleak.com"]
+
+	IMAGE_EXTENSIONS = ["jpg", "png", "gif", "bmp"]
+
 	# Basics
 	username=None
 	comments = []
@@ -92,6 +133,9 @@ class RedditUser:
 
 	# About
 	signup_date = None
+	first_post_date = None
+	signup_date_text = None
+	first_post_date_text = None
 	link_karma = 0
 	comment_karma = 0
 
@@ -111,7 +155,16 @@ class RedditUser:
 		"date": [],
 		"weekday": [],
 		"hour": [],
-		"subreddit": []
+		"subreddit": [],
+		"submissions": {
+			"name": "All",
+			"children": [
+				{"name": "Self", "children":[]},
+				{"name": "Image", "children":[]},
+				{"name": "Video", "children":[]},
+				{"name": "Other", "children":[]}
+			]
+		}
 	}
 
 	_genders = []
@@ -137,29 +190,34 @@ class RedditUser:
 	more_actions = []
 
 	favorites = []
-
-
 	sentiments = []
 
 	derived_attributes = {
-		"age": [],
-		"gender": [],
-		"locations": [],
-		"gadgets": [],
-		"orientation": [],
-		"relationship_status": [],
-		"possessions": [],
-		"political_view": [],
+		"drug": [],
 		"family_members": [],
-		"religion": [],
+		"gadget": [],
+		"gender": [],
+		"location": [],
+		"nationality": [],
+		"orientation": [],
 		"pets": [],
 		"physical_characteristics": [],
+		"political_view": [],
+		"possession": [],
 		"race": [],
-		"nationality": []
+		"relationship_status": [],
+		"religion": []
 	}
 
 	corpus = ""
 	
+	commented_dates = []
+	submitted_dates = []
+	
+	lurk_streak = None
+
+	comments_gilded = 0
+	submissions_gilded = 0
 	
 	def __init__(self,username):
 		# Populate username and about data
@@ -174,6 +232,8 @@ class RedditUser:
 		today = datetime.datetime.now(tz=pytz.utc).date()
 
 		start = self.signup_date.date()
+
+		self.signup_date_text = Util.ago((today-start).days)
 
 		self.metrics["date"] = [
 			{"date":(year, month), "comments": 0, "submissions": 0, "comment_karma": 0, "submission_karma": 0} \
@@ -243,6 +303,7 @@ class RedditUser:
 				submission_id = child["data"]["link_id"].encode("ascii","ignore").lower()[3:]
 				edited = child["data"]["edited"]
 				top_level = True if child["data"]["parent_id"].startswith("t3") else False
+				gilded = child["data"]["gilded"]
 				permalink = "http://www.reddit.com/r/%s/comments/%s/_/%s" % (subreddit, submission_id, id)
 				
 				comment = Comment(
@@ -254,7 +315,8 @@ class RedditUser:
 					permalink=permalink,
 					submission_id=submission_id,
 					edited=edited,
-					top_level=top_level
+					top_level=top_level,
+					gilded=gilded
 				)
 				
 				comments.append(comment)
@@ -291,6 +353,9 @@ class RedditUser:
 				permalink = "http://www.reddit.com"+child["data"]["permalink"].encode("ascii","ignore").lower()
 				url = child["data"]["url"].encode("ascii","ignore").lower()
 				title = child["data"]["title"].encode("ascii","ignore")
+				is_self = child["data"]["is_self"]
+				gilded = child["data"]["gilded"]
+				domain = child["data"]["domain"]
 				
 				submission = Submission(
 					id=id,
@@ -300,7 +365,10 @@ class RedditUser:
 					score=score,
 					permalink=permalink,
 					url=url,
-					title=title
+					title=title,
+					is_self=is_self,
+					gilded=gilded,
+					domain=domain
 				)				
 
 				submissions.append(submission)
@@ -322,8 +390,9 @@ class RedditUser:
 
 		if self.submissions:
 			self.process_submissions()
-
-		self.derive_attributes()
+		
+		if self.comments or self.submissions:
+			self.derive_attributes()
 
 	
 	def process_comments(self):
@@ -359,6 +428,9 @@ class RedditUser:
 		self.corpus += text.lower()
 
 		comment_timestamp = datetime.datetime.fromtimestamp(comment.created_utc,tz=pytz.utc)
+
+		self.commented_dates.append(comment_timestamp.date())
+		self.comments_gilded += comment.gilded
 		
 		for i,d in enumerate(self.metrics["date"]):
 			if d["date"]==(comment_timestamp.date().year, comment_timestamp.date().month):
@@ -402,11 +474,14 @@ class RedditUser:
 
 
 	def process_submission(self, submission):
-		text = Util.sanitize_text(submission.title + " . " + submission.text)
-		self.corpus += text.lower()
-
+		if(submission.is_self):
+			text = Util.sanitize_text(submission.text)
+			self.corpus += text.lower()
 
 		submission_timestamp = datetime.datetime.fromtimestamp(submission.created_utc,tz=pytz.utc)
+
+		self.submitted_dates.append(submission_timestamp.date())
+		self.submissions_gilded += submission.gilded
 
 		for i,d in enumerate(self.metrics["date"]):
 			if d["date"]==(submission_timestamp.date().year, submission_timestamp.date().month):
@@ -429,6 +504,33 @@ class RedditUser:
 				self.metrics["weekday"][i]=w
 				break
 
+		submission_type = None
+		submission_domain = None
+		submission_url_path = urlparse(submission.url).path
+		
+		if submission.domain.startswith("self."):
+			submission_type = "Self"
+			submission_domain = submission.subreddit
+		elif (submission_url_path.endswith(tuple(self.IMAGE_EXTENSIONS)) or submission.domain.endswith(tuple(self.IMAGE_DOMAINS))):
+			submission_type = "Image"
+			submission_domain = submission.domain
+		elif submission.domain.endswith(tuple(self.VIDEO_DOMAINS)):
+			submission_type = "Video"
+			submission_domain = submission.domain
+		else:
+			submission_type = "Other"
+			submission_domain = submission.domain
+		t = [x for x in self.metrics["submissions"]["children"] if x["name"]==submission_type][0]
+		d = ([x for x in t["children"] if x["name"]==submission_domain] or [None])[0]
+		if d:
+			#self.metrics["submisssions"][submission_type]
+			d["size"] += 1
+		else:
+			t["children"].append({
+				"name": submission_domain,
+				"size": 1
+			})
+
 		if submission.score > self.best_submission.score:
 			self.best_submission = submission
 		elif submission.score < self.worst_submission.score:
@@ -437,7 +539,7 @@ class RedditUser:
 		if submission.subreddit.lower() in ignore_text_subs:
 			return False
 
-		if not re.search(r"\b(i|my)\b",text,re.I):
+		if not submission.is_self or not re.search(r"\b(i|my)\b",text,re.I):
 			return False
 		
 		(chunks, sentiments) = extractor.extract_chunks(text)
@@ -577,21 +679,38 @@ class RedditUser:
 	def derive_attributes(self):
 		for name,count in self.commented_subreddits():
 			subreddit = ([s for s in subreddits if s["name"]==name] or [None])[0]
-			if subreddit and subreddit["attribute"]:
+			if subreddit and subreddit["attribute"] and count>=self.MIN_THRESHOLD:
 				self.derived_attributes[subreddit["attribute"]].append(subreddit["value"])
-				#print subreddit["value"]
 
 		for name,count in self.submitted_subreddits():
 			subreddit = ([s for s in subreddits if s["name"]==name] or [None])[0]
-			if subreddit and subreddit["attribute"]:
+			if subreddit and subreddit["attribute"] and count>=self.MIN_THRESHOLD:
 				self.derived_attributes[subreddit["attribute"]].append(subreddit["value"])
-				#print subreddit["value"]
 
+		if "wife" in [v for v,s in self._relationship_partners]:
+			self.derived_attributes["gender"].append("male")
+		elif "husband" in [v for v,s in self._relationship_partners]:
+			self.derived_attributes["gender"].append("female")
 
+		active_dates = sorted(self.commented_dates+self.submitted_dates)
+
+		self.first_post_date = min(active_dates)
+		self.first_post_date_text = Util.ago((self.first_post_date-self.signup_date.date()).days)
+		
+		active_dates += [datetime.date.today()]
+		lurk_streak = max([{"duration":(d2-d1).days, "date1":d1, "date2":d2} for d1,d2 in zip(active_dates[:-1], active_dates[1:])], key=lambda x:x["duration"])
+		self.lurk_streak = {
+			"duration":Util.ago(lurk_streak["duration"]),
+			"date1": lurk_streak["date1"].strftime("%b %d, %Y"),
+			"date2": lurk_streak["date2"].strftime("%b %d, %Y"),
+		}
+
+		'''
 		if not self._genders and "wife" in [v for v,s in self._relationship_partners]:
 			self._genders.append(("male","derived"))
 		elif not self._genders and "husband" in [v for v,s in self._relationship_partners]:
 			self._genders.append(("female","derived"))
+		'''
 
 
 	def commented_subreddits(self):
@@ -627,6 +746,9 @@ class RedditUser:
 
 
 	def results(self):
+		if not (self.comments and self.submissions):
+			return json.dumps(None)
+
 		metrics_date = []
 		
 		for d in self.metrics["date"]:
@@ -669,7 +791,6 @@ class RedditUser:
 				"submission_karma":w["submission_karma"],
 				"karma":w["comment_karma"]+w["submission_karma"]
 			})
-
 		
 		metrics_subreddit = {"name":"All", "children":[]}
 		
@@ -747,7 +868,16 @@ class RedditUser:
 		for comment in self.comments:
 			subreddit = ([s for s in subreddits if s["name"]==comment.subreddit] or [None])[0]
 			if subreddit and subreddit["ignore_topic"]!="Y":
-				topic = ">".join([subreddit["topic_level1"],subreddit["topic_level2"],subreddit["topic_level3"]])
+				#topic = ">".join([subreddit["topic_level1"],subreddit["topic_level2"],subreddit["topic_level3"]])
+				topic = subreddit["topic_level1"]
+				if subreddit["topic_level2"]:
+					topic += ">"+subreddit["topic_level2"]
+				else:
+					topic += ">"+"General"
+				if subreddit["topic_level3"]:
+					topic += ">"+subreddit["topic_level3"]
+				else:
+					topic += ">"+"General"
 				topics.append(topic)
 			else:
 				topics.append("Other")
@@ -755,7 +885,16 @@ class RedditUser:
 		for submission in self.submissions:
 			subreddit = ([s for s in subreddits if s["name"]==submission.subreddit] or [None])[0]
 			if subreddit and subreddit["ignore_topic"]!="Y":
-				topic = ">".join([subreddit["topic_level1"],subreddit["topic_level2"],subreddit["topic_level3"]])
+				#topic = ">".join([subreddit["topic_level1"],subreddit["topic_level2"],subreddit["topic_level3"]])
+				topic = subreddit["topic_level1"]
+				if subreddit["topic_level2"]:
+					topic += ">"+subreddit["topic_level2"]
+				else:
+					topic += ">"+"General"
+				if subreddit["topic_level3"]:
+					topic += ">"+subreddit["topic_level3"]
+				else:
+					topic += ">"+"General"
 				topics.append(topic)
 			else:
 				topics.append("Other")
@@ -773,10 +912,12 @@ class RedditUser:
 							found_child = True
 							break
 					if not found_child:
+						#child_node = {"name": level_topic, "children": []}
 						child_node = {"name": level_topic, "children": []}
 						children.append(child_node)
 					current_node = child_node
 				else:
+					#child_node = {"name": level_topic, "size": count, "children":[]}
 					child_node = {"name": level_topic, "size": count}
 					children.append(child_node)		
 
@@ -856,49 +997,37 @@ class RedditUser:
 		music = []
 		drugs = []
 
+
 		for topic, count in Counter(topics).most_common():
 			level_topics = filter(None,topic.split(">"))
 
 			# Locations
-			if len(level_topics)==3 and level_topics[0].lower()=="location" and count>=self.MIN_THRESHOLD:
-				locations.append({"value": level_topics[2].lower(), "count": count})
+			if len(level_topics)>1 and level_topics[0].lower()=="location" and count>=self.MIN_THRESHOLD:
+				locations.append({"value": Util.coalesce(level_topics).lower(), "count": count})
 			
 			# TV shows
-			if len(level_topics)==3 and level_topics[0].lower()=="entertainment" and level_topics[1].lower()=="tv" and level_topics[2].lower()!="general" and count>=self.MIN_THRESHOLD:
-				tv_shows.append({"value": level_topics[2].lower(), "count": count})
+			if len(level_topics)>1 and level_topics[0].lower()=="entertainment" and level_topics[1].lower()=="tv shows" and count>=self.MIN_THRESHOLD:
+				tv_shows.append({"value": Util.coalesce(level_topics).lower(), "count": count})
 
 			# Interests
-			if len(level_topics)==3 and level_topics[0].lower()=="interests":
-				if level_topics[2].lower()=="general":
-					level_topics[2]=None
-				if count>=self.MIN_THRESHOLD:
-					interests.append({"value":(level_topics[2] or level_topics[1]).lower(), "count":count})
+			if len(level_topics)>1  and level_topics[0].lower()=="interests" and count>=self.MIN_THRESHOLD:
+				interests.append({"value": Util.coalesce(level_topics).lower(), "count": count})
 
 			# Games
-			if len(level_topics)==3 and level_topics[0].lower()=="gaming":
-				if level_topics[2].lower()=="general":
-					level_topics[2]=None
-				if count>=self.MIN_THRESHOLD:
-					games.append({"value":(level_topics[2] or level_topics[1]).lower(), "count":count})
+			if len(level_topics)>1 and level_topics[0].lower()=="gaming" and count>=self.MIN_THRESHOLD:
+				games.append({"value": Util.coalesce(level_topics).lower(), "count": count})
 
 			# Sports
-			if len(level_topics)==3 and level_topics[0].lower()=="sports":
-				if level_topics[2].lower()=="general":
-					level_topics[2]=None
-				if count>=self.MIN_THRESHOLD:
-					sports.append({"value":(level_topics[2] or level_topics[1]).lower(), "count":count})
+			if len(level_topics)>1 and level_topics[0].lower()=="sports" and count>=self.MIN_THRESHOLD:
+				sports.append({"value": Util.coalesce(level_topics).lower(), "count": count})
 
 			# Music
-			if len(level_topics)==3 and level_topics[0].lower()=="music":
-				if level_topics[2].lower()=="general":
-					level_topics[2]=None
-				if count>=self.MIN_THRESHOLD:
-					music.append({"value":(level_topics[2] or level_topics[1]).lower(), "count":count})
+			if len(level_topics)>1 and level_topics[0].lower()=="music" and count>=self.MIN_THRESHOLD:
+				music.append({"value": Util.coalesce(level_topics).lower(), "count": count})
 
 			# Drugs
-			if len(level_topics)==3 and level_topics[0].lower()=="drugs" and level_topics[2].lower()!="general" and count>=self.MIN_THRESHOLD:
-				if count>=self.MIN_THRESHOLD:
-					drugs.append({"value":(level_topics[2], "count":count})
+			if len(level_topics)>1 and level_topics[0].lower()=="lifestyle" and level_topics[1].lower()=="drugs" and count>=self.MIN_THRESHOLD:
+				drugs.append({"value": Util.coalesce(level_topics).lower(), "count": count})
 
 		results = {
 			"username": self.username,
@@ -925,54 +1054,62 @@ class RedditUser:
 					"core": core_possessions,
 					"more": more_possessions
 				},
+				"locations": locations,
 				"tv_shows": tv_shows,
 				"interests": interests,
 				"games": games,
 				"sports": sports,
 				"music": music,
-				"locations": locations,
+				"drugs": drugs,
+				
 				"derived_attributes": {
-					#"age":Counter(self.derived_attributes["age"]).most_common(1),
-					#"gender":Counter(self.derived_attributes["gender"]).most_common(1),
-					"locations":Counter(self.derived_attributes["locations"]).most_common(),
-					"gadgets":Counter(self.derived_attributes["gadgets"]).most_common(),
-					"orientation":Counter(self.derived_attributes["orientation"]).most_common(1),
-					"relationship_status":Counter(self.derived_attributes["relationship_status"]).most_common(1),
-					"possessions":Counter(self.derived_attributes["possessions"]).most_common(),
-					"political_view":Counter(self.derived_attributes["political_view"]).most_common(),
+					"drug":Counter(self.derived_attributes["drug"]).most_common(),
 					"family_members":Counter(self.derived_attributes["family_members"]).most_common(),
-					"religion":Counter(self.derived_attributes["religion"]).most_common(),
+					"gadget":Counter(self.derived_attributes["gadget"]).most_common(),
+					"gender":Counter(self.derived_attributes["gender"]).most_common(1),
+					"location":Counter(self.derived_attributes["location"]).most_common(),
+					"nationality":Counter(self.derived_attributes["nationality"]).most_common(),
+					"orientation":Counter(self.derived_attributes["orientation"]).most_common(),
 					"pets":Counter(self.derived_attributes["pets"]).most_common(),
 					"physical_characteristics":Counter(self.derived_attributes["physical_characteristics"]).most_common(),
+					"political_view":Counter(self.derived_attributes["political_view"]).most_common(),
+					"possession":Counter(self.derived_attributes["possession"]).most_common(),
 					"race":Counter(self.derived_attributes["race"]).most_common(),
-					"nationality":Counter(self.derived_attributes["nationality"]).most_common(),
+					"relationship_status":Counter(self.derived_attributes["relationship_status"]).most_common(1),
+					"religion":Counter(self.derived_attributes["religion"]).most_common()
 				}
 			},
 			"stats": {
 				"basic": {
-					"signup_date": self.signup_date.strftime("%m/%d/%Y"),
+					"signup_date": self.signup_date.strftime("%b %d, %Y"),
+					"signup_date_text": self.signup_date_text,
+					"first_post_date": self.first_post_date.strftime("%b %d, %Y"),
+					"first_post_date_text": self.first_post_date_text,
+					"lurk_streak": self.lurk_streak,
 					"link_karma": self.link_karma,
 					"comment_karma": self.comment_karma,
 					"comments": {
 						"count": len(self.comments),
+						"gilded": self.comments_gilded,
 						"best": {
-							"text":self.best_comment.text,
-							"permalink":self.best_comment.permalink
+							"text":self.best_comment.text if self.best_comment else None,
+							"permalink":self.best_comment.permalink if self.best_comment else None
 						},
 						"worst": {
-							"text":self.worst_comment.text,
-							"permalink":self.worst_comment.permalink
+							"text":self.worst_comment.text if self.worst_comment else None,
+							"permalink":self.worst_comment.permalink if self.worst_comment else None
 						}
 					},
 					"submissions": {
 						"count": len(self.submissions),
+						"gilded": self.submissions_gilded,
 						"best": {
-							"title":self.best_submission.title,
-							"permalink":self.best_submission.permalink
+							"title":self.best_submission.title if self.best_submission else None,
+							"permalink":self.best_submission.permalink if self.best_submission else None
 						},
 						"worst": {
-							"title":self.worst_submission.title,
-							"permalink":self.worst_submission.permalink
+							"title":self.worst_submission.title if self.worst_submission else None,
+							"permalink":self.worst_submission.permalink if self.worst_submission else None
 						}
 					}
 				},
@@ -981,7 +1118,8 @@ class RedditUser:
 					"hour": metrics_hour,
 					"weekday": metrics_weekday,
 					"subreddit": metrics_subreddit,
-					"topic": metrics_topic
+					"topic": metrics_topic,
+					"submissions": self.metrics["submissions"],
 				},
 				"common_words": common_words
 			}
