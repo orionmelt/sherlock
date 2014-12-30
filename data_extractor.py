@@ -328,6 +328,12 @@ class DataExtractor:
 	def common_words(self,text):
 		return [word for word in list(TextBlob(text).words) if word not in stopwords and word.isalpha()]
 
+	def total_word_count(self, text):
+		return len(list(TextBlob(text).words))
+
+	def unique_word_count(self, text):
+		return len(set(list(TextBlob(text).words)))
+
 	@staticmethod
 	def test_sentence(sentence):
 		print TextBlob(sentence).tags
