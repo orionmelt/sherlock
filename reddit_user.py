@@ -35,6 +35,7 @@ class Util:
 
 	@staticmethod
 	def coalesce(l):
+		l = [x for x in l if x.lower()!="generic"]
 		return next(iter(l[::-1]), "")
 
 	@staticmethod
@@ -873,11 +874,11 @@ class RedditUser:
 				if subreddit["topic_level2"]:
 					topic += ">"+subreddit["topic_level2"]
 				else:
-					topic += ">"+"General"
+					topic += ">"+"Generic"
 				if subreddit["topic_level3"]:
 					topic += ">"+subreddit["topic_level3"]
 				else:
-					topic += ">"+"General"
+					topic += ">"+"Generic"
 				topics.append(topic)
 			else:
 				topics.append("Other")
@@ -890,11 +891,11 @@ class RedditUser:
 				if subreddit["topic_level2"]:
 					topic += ">"+subreddit["topic_level2"]
 				else:
-					topic += ">"+"General"
+					topic += ">"+"Generic"
 				if subreddit["topic_level3"]:
 					topic += ">"+subreddit["topic_level3"]
 				else:
-					topic += ">"+"General"
+					topic += ">"+"Generic"
 				topics.append(topic)
 			else:
 				topics.append("Other")
@@ -922,6 +923,10 @@ class RedditUser:
 					children.append(child_node)		
 
 		common_words = [{"text":word, "size":count} for word, count in Counter(extractor.common_words(self.corpus)).most_common(200)]
+		total_word_count = extractor.total_word_count(self.corpus)
+		unique_word_count = extractor.unique_word_count(self.corpus)
+		hours_typed = round(total_word_count/(40.00*60.00),2)
+
 
 		core_places_lived = []
 		for value,count in Counter([value for value,source in self.core_places_lived]).most_common():
@@ -999,7 +1004,7 @@ class RedditUser:
 
 
 		for topic, count in Counter(topics).most_common():
-			level_topics = filter(None,topic.split(">"))
+			level_topics = [x for x in topic.split(">") if x.lower()!="generic"]
 
 			# Locations
 			if len(level_topics)>1 and level_topics[0].lower()=="location" and count>=self.MIN_THRESHOLD:
@@ -1111,6 +1116,12 @@ class RedditUser:
 							"title":self.worst_submission.title if self.worst_submission else None,
 							"permalink":self.worst_submission.permalink if self.worst_submission else None
 						}
+					},
+					"words_in_posts": {
+						"total_word_count": total_word_count,
+						"unique_word_count": unique_word_count,
+						"hours_typed": hours_typed,
+						"karma_per_word": round(self.comment_karma/(total_word_count*1.00),2)
 					}
 				},
 				"metrics": {
