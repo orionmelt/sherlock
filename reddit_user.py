@@ -1001,6 +1001,15 @@ class RedditUser:
 		sports = []
 		music = []
 		drugs = []
+		books = []
+		celebs = []
+		business = []
+		entertainment = []
+		science = []
+		tech = []
+		lifestyle = []
+		others = []
+		fringe_topics = ["anthropology", "architecture", "art", "history", "law", "news & politics", "philosophy", "psychology", "travel"]
 
 
 		for topic, count in Counter(topics).most_common():
@@ -1034,6 +1043,40 @@ class RedditUser:
 			if len(level_topics)>1 and level_topics[0].lower()=="lifestyle" and level_topics[1].lower()=="drugs" and count>=self.MIN_THRESHOLD:
 				drugs.append({"value": Util.coalesce(level_topics).lower(), "count": count})
 
+			# Books
+			if len(level_topics)>1 and level_topics[0].lower()=="entertainment" and level_topics[1].lower()=="books" and count>=self.MIN_THRESHOLD:
+				books.append({"value": Util.coalesce(level_topics).lower(), "count": count})
+
+			# Celebs
+			if len(level_topics)>1 and level_topics[0].lower()=="entertainment" and level_topics[1].lower()=="celebrities" and count>=self.MIN_THRESHOLD:
+				celebs.append({"value": Util.coalesce(level_topics).lower(), "count": count})
+
+			# Business
+			if len(level_topics)>1 and level_topics[0].lower()=="business" and count>=self.MIN_THRESHOLD:
+				business.append({"value": Util.coalesce(level_topics).lower(), "count": count})
+
+			# Other Entertainment
+			if len(level_topics)>1 and level_topics[0].lower()=="entertainment" and level_topics[1].lower() not in ["books", "celebrities", "tv shows"] and count>=self.MIN_THRESHOLD:
+				entertainment.append({"value": Util.coalesce(level_topics).lower(), "count": count})
+
+			# Science
+			if len(level_topics)>1 and level_topics[0].lower()=="science" and count>=self.MIN_THRESHOLD:
+				science.append({"value": Util.coalesce(level_topics).lower(), "count": count})
+
+			# Tech
+			if len(level_topics)>1 and level_topics[0].lower()=="technology" and count>=self.MIN_THRESHOLD:
+				tech.append({"value": Util.coalesce(level_topics).lower(), "count": count})
+
+			# Lifestyle
+			if len(level_topics)>1 and level_topics[0].lower()=="lifestyle" and level_topics[1] not in ["drugs", "religion"] and count>=self.MIN_THRESHOLD:
+				lifestyle.append({"value": Util.coalesce(level_topics).lower(), "count": count})
+
+			# Others
+			if level_topics[0].lower() in fringe_topics and count>=self.MIN_THRESHOLD:
+				others.append({"value": Util.coalesce(level_topics).lower(), "count": count})
+
+
+
 		results = {
 			"username": self.username,
 			"about": {
@@ -1066,7 +1109,14 @@ class RedditUser:
 				"sports": sports,
 				"music": music,
 				"drugs": drugs,
-				
+				"books": books,
+				"celebs": celebs,
+				"business": business,
+				"entertainment": entertainment,
+				"science": science,
+				"tech": tech,
+				"lifestyle": lifestyle,
+				"others": others,
 				"derived_attributes": {
 					"drug":Counter(self.derived_attributes["drug"]).most_common(),
 					"family_members":Counter(self.derived_attributes["family_members"]).most_common(),
