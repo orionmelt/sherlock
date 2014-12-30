@@ -12,3 +12,10 @@ venv
 # Ignore data files
 *.csv
 data/
+results/
+
+# Ignore text files
+*.txt
+
+# Ignore Blockspring file
+blockspring.py
