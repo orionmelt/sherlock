@@ -17,3 +17,5 @@ results/
 # Ignore text files
 *.txt
 
+# Ignore Blockspring file
+blockspring.py
