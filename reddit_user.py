@@ -747,7 +747,7 @@ class RedditUser:
 
 
 	def results(self):
-		if not (self.comments and self.submissions):
+		if not (self.comments or self.submissions):
 			return json.dumps(None)
 
 		metrics_date = []
