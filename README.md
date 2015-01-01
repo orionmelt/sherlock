@@ -14,7 +14,7 @@ Usage
     python sherlock.py <reddit-username>
     
 Example
-======
+=======
 Command:
 
     python sherlock.py orionmelt
@@ -26,3 +26,6 @@ Output:
     Processing complete... 0:00:07.329907
 
 
+License
+=======
+MIT License
