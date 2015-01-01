@@ -17,8 +17,18 @@ extractor = DataExtractor()
 
 
 class Util:
+	"""
+	Contains a collection of common utility methods.
+
+	"""
+
 	@staticmethod
 	def sanitize_text(text):
+		"""
+		Returns text after removing unnecessary parts.
+		
+		"""
+
 		_text = " ".join([l for l in text.split("\n") if not l.startswith("&gt;")])
 		substitutions = [
 			(r"\[(.*?)\]\((.*?)\)", r""), 	# Remove links from Markdown
@@ -35,11 +45,20 @@ class Util:
 
 	@staticmethod
 	def coalesce(l):
+		"""
+		Given a list, returns the last element that is not equal to "generic".
+		
+		"""
+
 		l = [x for x in l if x.lower()!="generic"]
 		return next(iter(l[::-1]), "")
 
 	@staticmethod
-	def ago(days):
+	def readable_days(days):
+		"""
+		Return text with years, months and days given number of days.
+		
+		"""
 		y = days/365 if days>365 else 0
 		m = (days-y*365)/31 if days>30 else 0
 		d = (days-m*31-y*365)
@@ -57,6 +76,11 @@ class Util:
 
 # Base class for comments and submissions
 class Post(object):
+	"""
+	A class for "posts" - a post can either be a submission or a comment.
+
+	"""
+
 	# Post id
 	id = None
 	# Subreddit in which this comment or submission was posted
@@ -83,6 +107,10 @@ class Post(object):
 		
 
 class Comment(Post):
+	"""
+	A class for comments derived from Post.
+	
+	"""
 	# Link ID where comment was posted
 	submission_id = None
 	# Edited flag
@@ -98,6 +126,11 @@ class Comment(Post):
 
 
 class Submission(Post):
+	"""
+	A class for submissions derived from Post.
+	
+	"""
+
 	# Submission link URL
 	url = None
 	# Submission title
@@ -116,8 +149,14 @@ class Submission(Post):
 
 
 class RedditUser:
+	"""
+	Models a redditor object. Contains methods for processing comments and submissions.
+	
+	"""
+
+
 	# Constants
-	MIN_THRESHOLD = 3
+	MIN_THRESHOLD = 3 # If user has posted in a sub 3 times or more, they are probably interested in the topic.
 	HEADERS = {
 	    'User-Agent': 'Sherlock v0.1 by /u/orionmelt'
 	}
@@ -175,10 +214,16 @@ class RedditUser:
 	family_members = []
 	pets = []
 
+	# Data that we are reasonably sure that *are* names of places.
 	core_places_lived = []
+
+	# Data that looks like it could be a place, but we're not sure.
 	more_places_lived = []
 
+	# Data that we are reasonably sure that *are* names of places.
 	core_places_grew_up = []
+
+	# Data that looks like it could be a place, but we're not sure.
 	more_places_grew_up = []
 
 	core_attributes = []
@@ -234,7 +279,7 @@ class RedditUser:
 
 		start = self.signup_date.date()
 
-		self.signup_date_text = Util.ago((today-start).days)
+		self.signup_date_text = Util.readable_days((today-start).days)
 
 		self.metrics["date"] = [
 			{"date":(year, month), "comments": 0, "submissions": 0, "comment_karma": 0, "submission_karma": 0} \
@@ -252,31 +297,14 @@ class RedditUser:
 
 
 	def __str__(self):
-		text =  "-"*80 + "\n"
-		text += "Gender: %s\n" % str(self.gender())
-		text += "Orientation: %s\n" % str(self.orientation())
-		text += "Relationship partner: %s\n" % str(self.relationship_partner())
-		text += "Family members: %s\n" % ", ".join([relative for (relative, source) in self.family_members])
-		text += "Pets: %s\n" % ", ".join([pet for (pet, source) in self.pets])
-		text += "Places lived: %s\n" % ", ".join([place for (place, source) in self.core_places_lived])
-		text += "Places grew up: %s\n" % ", ".join([place for (place, source) in self.core_places_grew_up])
-		text += "Attributes: %s\n" % ", ".join([attribute for (attribute, source) in self.core_attributes])
-		text += "Possessions: %s\n" % ", ".join([possession for (possession, source) in self.core_possessions])
-		text += "Actions: %s\n" % ", ".join([action for (action, source) in self.core_actions])
-		text += "Favorites: %s\n" % ", ".join([favorite for (favorite, source) in self.favorites])
-
-		text += "Derived Attributes: %s\n" % str(self.derived_attributes)
-
-		#text += "Commented subreddits: %s\n" % ", ".join([str(t) for t in self.commented_subreddits()])
-		#text += "Submitted subreddits: %s\n" % ", ".join([str(t) for t in self.submitted_subreddits()])
-
-		text += "Results: %s\n" % self.results()
-
-		text +=  "-"*80 + "\n"
-		return text
+		return str(self.results())
 
 
 	def get_about(self):
+		"""
+		Returns basic data about redditor.
+
+		"""
 		url = r"http://www.reddit.com/user/%s/about.json" % self.username
 		response = requests.get(url,headers=self.HEADERS)
 		response_json = response.json()
@@ -284,6 +312,11 @@ class RedditUser:
 
 
 	def get_comments(self,limit=None):
+		"""
+		Returns a list of redditor's comments.
+
+		"""
+
 		comments = []
 		more_comments = True
 		after = None
@@ -326,7 +359,7 @@ class RedditUser:
 
 			if after:
 				url = base_url + "&after=%s" % after
-				#time.sleep(2)
+				#time.sleep(2) # Reddit may rate limit if we don't wait for 2 seconds between successive requests. If that happens, uncomment this line.
 			else:
 				more_comments = False
 
@@ -334,6 +367,11 @@ class RedditUser:
 
 
 	def get_submissions(self,limit=None):
+		"""
+		Returns a list of redditor's submissions.
+		
+		"""
+
 		submissions = []
 		more_submissions = True
 		after = None
@@ -378,7 +416,7 @@ class RedditUser:
 
 			if after:
 				url = base_url + "&after=%s" % after
-				#time.sleep(2)
+				#time.sleep(2) # Reddit may rate limit if we don't wait for 2 seconds between successive requests. If that happens, uncomment this line.
 			else:
 				more_submissions = False
 
@@ -386,6 +424,11 @@ class RedditUser:
 
 
 	def process(self):
+		"""
+		Retrieves redditor's comments and submissions and processes each of them.
+
+		"""
+
 		if self.comments:
 			self.process_comments()
 
@@ -397,6 +440,11 @@ class RedditUser:
 
 	
 	def process_comments(self):
+		"""
+		Process list of redditor's comments.
+
+		"""
+
 		if not self.comments:
 			return
 		
@@ -411,6 +459,11 @@ class RedditUser:
 
 
 	def process_submissions(self):
+		"""
+		Process list of redditor's submissions.
+
+		"""
+
 		if not self.submissions:
 			return
 		
@@ -425,7 +478,18 @@ class RedditUser:
 
 
 	def process_comment(self, comment):
+		"""
+		Process a single comment.
+
+		* Updates metrics
+		* Sanitizes and extracts chunks from comment.
+
+		"""
+
+		# Sanitize comment text.
 		text = Util.sanitize_text(comment.text)
+
+		# Add comment text to corpus.
 		self.corpus += text.lower()
 
 		comment_timestamp = datetime.datetime.fromtimestamp(comment.created_utc,tz=pytz.utc)
@@ -433,6 +497,7 @@ class RedditUser:
 		self.commented_dates.append(comment_timestamp.date())
 		self.comments_gilded += comment.gilded
 		
+		# Update metrics
 		for i,d in enumerate(self.metrics["date"]):
 			if d["date"]==(comment_timestamp.date().year, comment_timestamp.date().month):
 				d["comments"]+=1
@@ -459,12 +524,15 @@ class RedditUser:
 		elif comment.score < self.worst_comment.score:
 			self.worst_comment = comment
 
+		# If comment is in a subreddit in which comments/self text are to be ignored (such as /r/jokes, /r/writingprompts, etc), do not process it further.
 		if comment.subreddit.lower() in ignore_text_subs:
 			return False
 
+		# If comment text does not contain "I" or "my", why even bother?
 		if not re.search(r"\b(i|my)\b",text,re.I):
 			return False
 		
+		# Now, this is a comment that needs to be processed.
 		(chunks, sentiments) = extractor.extract_chunks(text)
 		self.sentiments += sentiments
 
@@ -475,6 +543,14 @@ class RedditUser:
 
 
 	def process_submission(self, submission):
+		"""
+		Process a single submission.
+
+		* Updates metrics
+		* Sanitizes and extracts chunks from self text.
+
+		"""
+
 		if(submission.is_self):
 			text = Util.sanitize_text(submission.text)
 			self.corpus += text.lower()
@@ -524,7 +600,6 @@ class RedditUser:
 		t = [x for x in self.metrics["submissions"]["children"] if x["name"]==submission_type][0]
 		d = ([x for x in t["children"] if x["name"]==submission_domain] or [None])[0]
 		if d:
-			#self.metrics["submisssions"][submission_type]
 			d["size"] += 1
 		else:
 			t["children"].append({
@@ -537,9 +612,11 @@ class RedditUser:
 		elif submission.score < self.worst_submission.score:
 			self.worst_submission = submission
 		
+		# If submission is in a subreddit in which comments/self text are to be ignored (such as /r/jokes, /r/writingprompts, etc), do not process it further.
 		if submission.subreddit.lower() in ignore_text_subs:
 			return False
 
+		# Only process self texts that contain "I" or "my"	
 		if not submission.is_self or not re.search(r"\b(i|my)\b",text,re.I):
 			return False
 		
@@ -553,13 +630,21 @@ class RedditUser:
 
 
 	def load_attributes(self, chunk, post):
+		"""
+		Given an extracted chunk, load appropriate attribtues from it.
+
+		"""
+
+		# Is this chunk a possession/belonging?
 		if chunk["kind"] == "possession" and chunk["noun_phrase"]:
+			# Extract noun from chunk
 			noun_phrase = chunk["noun_phrase"]
 			noun_phrase_text = " ".join([w for w,t in noun_phrase])
 			norm_nouns = " ".join([extractor.normalize(w,t) for w,t in noun_phrase if t.startswith("N")])
 			
 			noun = next((w for w,t in noun_phrase if t.startswith("N")),None)
 			if noun:
+				# See if noun is a pet, family member or a relationship partner
 				pet = extractor.pet_animal(noun)
 				family_member = extractor.family_member(noun)
 				relationship_partner = extractor.relationship_partner(noun)
@@ -573,10 +658,12 @@ class RedditUser:
 				else:
 					self.more_possessions.append((norm_nouns, post.permalink))
 
+		# Is this chunk an action?
 		elif chunk["kind"] == "action" and chunk["verb_phrase"]:
 			verb_phrase = chunk["verb_phrase"]
 			verb_phrase_text = " ".join([w for w,t in verb_phrase])
 
+			# Extract verbs, adverbs, etc from chunk
 			norm_adverbs = [extractor.normalize(w,t) for w,t in verb_phrase if t.startswith("RB")]
 			adverbs = [w.lower() for w,t in verb_phrase if t.startswith("RB")]
 
@@ -625,7 +712,7 @@ class RedditUser:
 					# Include only "am" phrases
 					elif "am" in verbs: 
 						attribute.append(noun)
-				
+
 				if attribute and \
 					(
 						(
@@ -678,6 +765,11 @@ class RedditUser:
 
 
 	def derive_attributes(self):
+		"""
+		Derives attributes using activity data.
+
+		"""
+
 		for name,count in self.commented_subreddits():
 			subreddit = ([s for s in subreddits if s["name"]==name] or [None])[0]
 			if subreddit and subreddit["attribute"] and count>=self.MIN_THRESHOLD:
@@ -688,6 +780,7 @@ class RedditUser:
 			if subreddit and subreddit["attribute"] and count>=self.MIN_THRESHOLD:
 				self.derived_attributes[subreddit["attribute"]].append(subreddit["value"])
 
+		# If someone mentions their wife, they should be male, and vice-versa (?)
 		if "wife" in [v for v,s in self._relationship_partners]:
 			self.derived_attributes["gender"].append("male")
 		elif "husband" in [v for v,s in self._relationship_partners]:
@@ -696,33 +789,43 @@ class RedditUser:
 		active_dates = sorted(self.commented_dates+self.submitted_dates)
 
 		self.first_post_date = min(active_dates)
-		self.first_post_date_text = Util.ago((self.first_post_date-self.signup_date.date()).days)
+		self.first_post_date_text = Util.readable_days((self.first_post_date-self.signup_date.date()).days)
 		
 		active_dates += [datetime.date.today()]
+
+		# Find the longest period of inactivity
 		lurk_streak = max([{"duration":(d2-d1).days, "date1":d1, "date2":d2} for d1,d2 in zip(active_dates[:-1], active_dates[1:])], key=lambda x:x["duration"])
 		self.lurk_streak = {
-			"duration":Util.ago(lurk_streak["duration"]),
+			"duration":Util.readable_days(lurk_streak["duration"]),
 			"date1": lurk_streak["date1"].strftime("%b %d, %Y"),
 			"date2": lurk_streak["date2"].strftime("%b %d, %Y"),
 		}
 
-		'''
-		if not self._genders and "wife" in [v for v,s in self._relationship_partners]:
-			self._genders.append(("male","derived"))
-		elif not self._genders and "husband" in [v for v,s in self._relationship_partners]:
-			self._genders.append(("female","derived"))
-		'''
-
 
 	def commented_subreddits(self):
+		"""
+		Returns a list of subreddits redditor has commented on.
+
+		"""
+
 		return [(name,count) for (name,count) in Counter([comment.subreddit for comment in self.comments]).most_common()]
 
 
 	def submitted_subreddits(self):
+		"""
+		Returns a list of subreddits redditor has submitted to.
+		
+		"""
+
 		return [(name,count) for (name,count) in Counter([submission.subreddit for submission in self.submissions]).most_common()]
 
 
 	def gender(self):
+		"""
+		Returns redditor's most probable gender.
+		
+		"""
+
 		if self._genders:
 			(g,_) = Counter([g for g,_ in self._genders]).most_common(1)[0]
 			return g
@@ -731,6 +834,11 @@ class RedditUser:
 
 
 	def orientation(self):
+		"""
+		Returns redditor's most probable orientation.
+		
+		"""
+
 		if self._orientations:
 			(o,_) = Counter([o for o,_ in self._orientations]).most_common(1)[0]
 			return o
@@ -739,6 +847,11 @@ class RedditUser:
 
 
 	def relationship_partner(self):
+		"""
+		Returns redditor's most probable relationship partner.
+		
+		"""
+
 		if self._relationship_partners:
 			(p,_) = Counter([p for p,_ in self._relationship_partners]).most_common(1)[0]
 			return p
@@ -747,9 +860,17 @@ class RedditUser:
 
 
 	def results(self):
+		"""
+		Returns accumulated data as JSON.
+		
+		"""
+
+		# Redditor has no data?
 		if not (self.comments or self.submissions):
 			return json.dumps(None)
 
+		
+		# Format metrics
 		metrics_date = []
 		
 		for d in self.metrics["date"]:
@@ -869,7 +990,6 @@ class RedditUser:
 		for comment in self.comments:
 			subreddit = ([s for s in subreddits if s["name"]==comment.subreddit] or [None])[0]
 			if subreddit and subreddit["ignore_topic"]!="Y":
-				#topic = ">".join([subreddit["topic_level1"],subreddit["topic_level2"],subreddit["topic_level3"]])
 				topic = subreddit["topic_level1"]
 				if subreddit["topic_level2"]:
 					topic += ">"+subreddit["topic_level2"]
@@ -886,7 +1006,6 @@ class RedditUser:
 		for submission in self.submissions:
 			subreddit = ([s for s in subreddits if s["name"]==submission.subreddit] or [None])[0]
 			if subreddit and subreddit["ignore_topic"]!="Y":
-				#topic = ">".join([subreddit["topic_level1"],subreddit["topic_level2"],subreddit["topic_level3"]])
 				topic = subreddit["topic_level1"]
 				if subreddit["topic_level2"]:
 					topic += ">"+subreddit["topic_level2"]
@@ -913,19 +1032,17 @@ class RedditUser:
 							found_child = True
 							break
 					if not found_child:
-						#child_node = {"name": level_topic, "children": []}
 						child_node = {"name": level_topic, "children": []}
 						children.append(child_node)
 					current_node = child_node
 				else:
-					#child_node = {"name": level_topic, "size": count, "children":[]}
 					child_node = {"name": level_topic, "size": count}
 					children.append(child_node)		
 
 		common_words = [{"text":word, "size":count} for word, count in Counter(extractor.common_words(self.corpus)).most_common(200)]
 		total_word_count = extractor.total_word_count(self.corpus)
 		unique_word_count = extractor.unique_word_count(self.corpus)
-		hours_typed = round(total_word_count/(40.00*60.00),2)
+		hours_typed = round(total_word_count/(40.00*60.00),2) # Let's use an average of 40 WPM
 
 
 		core_places_lived = []

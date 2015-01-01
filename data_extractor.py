@@ -46,6 +46,10 @@ ADV="r"
 ADJ="a"
 
 class DataExtractor:
+	"""
+	Utility class for processing text content.
+	"""	
+
 	substitutions = [
 		(r"\b(im|i'm)\b", "i am"),
 		(r"\b(id|i'd)\b", "i would"),
@@ -88,11 +92,12 @@ class DataExtractor:
 		(r"\b(like|love)\b", "prefer"),
 	]
 
-	# Skip if any of these is the *only* attribute
+	# Skip if any of these is the *only* attribute - for instance, "I'm a big fan of Queen" makes sense, but "I'm a fan" doesn't.
 	skip_lone_attributes = 	[
 								"fan","expert","person","advocate","customer",
 							]
 
+	# A select set of attributes we want to exclude.
 	skip_attributes = 		[
 								"supporter","believer","gender","backer","sucker","chapter","passenger","super","water","sitter",
 								"killer","stranger","monster","leather","holder","creeper","shower","member","wonder","hungover",
@@ -105,14 +110,17 @@ class DataExtractor:
 								"everything","everyone",
 							]
 
+	# A select set of attributes we want to include.
 	include_attributes = 	[
 								"geek","nerd","nurse","cook","student","consultant","mom","dad","marine","chef","sophomore","catholic",
-								#"person","enthusiast","fanboy","player","advocate", # These make sense only when accompanied by at least another noun
+								#"person","enthusiast","fanboy","player","advocate", # TODO - These make sense only when accompanied by at least another noun
 							]
 
+	# Super awesome logic - if noun ends in any of these, it's *probably* something we want to include/exclude. TODO - This is terrible logic, see if we can implement actual NLP.
 	include_attribute_endings = ("er","or","ar","ist","an","ert","ese","te","ot")
 	exclude_attribute_endings = ("ing","fucker")
 
+	# "Filler" words (in sentences such as "I think...", "I guess...", etc.)
 	skip_verbs 			= ["were","think","guess","mean"]
 	skip_prepositions 	= ["that"]
 	skip_adjectives		= ["sure","glad","happy","afraid","sorry","certain"]
@@ -124,8 +132,8 @@ class DataExtractor:
 	  _N0:
 	  		{(<DT>*<JJ>*<NN.*>+(?!<POS>))+}
 	  _N:
-	  		{<_N0>+(<CC><_N0>)*}
-	  										# determiner adjective noun(s) (a beautiful house / the strongest fighter)
+	  		{<_N0>+(<CC><_N0>)*}			# determiner adjective noun(s) (conjunction noun(s)) (a beautiful house / the strongest fighter)
+	  										
 	  _N_PREP_N:
 	  		{<_N>((<TO>|<IN>)<_N>)+}		# to/in noun ((newcomer) to physics / (big fan) of Queen / (newbie) in gaming )
 	  POSS: 
@@ -138,11 +146,21 @@ class DataExtractor:
 	chunker = RegexpParser(grammar)
 
 	def clean_up(self, text):
+		"""
+		Removes unnecessary words from text and replaces common misspellings/contractions with expanded words.
+
+		"""
+
 		for original, rep in self.substitutions:
 			text = re.sub(original, rep, text, flags=re.I)
 		return text
 
 	def normalize(self, word, tag="N"):
+		"""
+		Normalizes word using given tag. If no tag is given, NOUN is assumed.
+		
+		"""
+
 		kind = NOUN
 		if tag.startswith("V"):
 			kind = VERB
@@ -153,6 +171,11 @@ class DataExtractor:
 		return Word(word).lemmatize(kind).lower()
 
 	def pet_animal(self, word):
+		"""
+		Returns word if word is in a predefined list of pet animals.
+		
+		"""
+
 		word = word.lower()
 		if re.match(r"\b(dog|cat|hamster|fish|pig|snake|rat|parrot)\b", word):
 			return word
@@ -160,6 +183,11 @@ class DataExtractor:
 			return None
 
 	def family_member(self, word):
+		"""
+		Returns normalized word if word is in a predefined list of family members.
+		
+		"""
+
 		word = word.lower()
 		if re.match(r"\b(mom|mother|mum|mommy)\b", word):
 			return "mother"
@@ -171,6 +199,11 @@ class DataExtractor:
 			return None
 
 	def relationship_partner(self, word):
+		"""
+		Returns word if word is in a predefined list of relationship partners.
+		
+		"""
+
 		word = word.lower()
 		if re.match(r"\b(ex-)*(boyfriend|girlfriend|so|wife|husband)\b", word):
 			return word
@@ -178,6 +211,11 @@ class DataExtractor:
 			return None
 
 	def gender(self, word):
+		"""
+		Returns normalized word if word is in a predefined list of genders.
+		
+		"""
+
 		word = word.lower()
 		if re.match(r"\b(girl|woman|female|lady|she)\b", word):
 			return "female"
@@ -187,6 +225,11 @@ class DataExtractor:
 			return None
 
 	def orientation(self, word):
+		"""
+		Returns word if word is in a predefined list of sexual orientations.
+		
+		"""
+
 		word = word.lower()
 		if re.match(r"\b(gay|straight|bi|bisexual|homosexual)\b", word):
 			return word
@@ -194,12 +237,22 @@ class DataExtractor:
 			return None
 
 	def process_verb_phrase(self, verb_tree):
+		"""
+		Returns list of (word,tag) tuples given a verb tree.
+		
+		"""
+
 		if verb_tree.label() != "_VP":
 			return None
 		verb_phrase = [(w.lower(),t) for w,t in verb_tree.leaves()]
 		return verb_phrase
 
 	def process_noun_phrase(self, noun_tree):
+		"""
+		Returns list of (word,tag) tuples given a noun tree.
+		
+		"""
+
 		if noun_tree.label() != "_N":
 			return []
 		if any(n in self.skip_nouns for n,t in noun_tree.leaves() if t.startswith("N")):
@@ -208,6 +261,11 @@ class DataExtractor:
 		return noun_phrase
 
 	def process_npn_phrase(self, npn_tree):
+		"""
+		Given a phrase of the form noun-preposition-noun, returns noun and preposition-noun phrases.
+		
+		"""
+
 		if npn_tree.label() != "_N_PREP_N":
 			return None
 		noun_phrase = []
@@ -226,6 +284,10 @@ class DataExtractor:
 		return (noun_phrase, prep_noun_phrase)
 
 	def process_possession(self, phrase):
+		"""
+		Given a phrase, checks and returns a possession/belonging (my <word>) if exists.
+		
+		"""
 		noun_phrase = []
 		
 		for i in range(len(phrase)):
@@ -248,6 +310,11 @@ class DataExtractor:
 			return None
 
 	def process_action(self, phrase):
+		"""
+		Given a phrase, checks and returns an action (I <verb-phrase>) if exists.
+		
+		"""
+
 		verb_phrase = []
 		prepositions = []
 		noun_phrase = []
@@ -283,6 +350,13 @@ class DataExtractor:
 			return None
 
 	def extract_chunks(self, text):
+		"""
+		Given a block of text, extracts and returns useful chunks.
+
+		TODO - Should sentiments be excluded here?
+		
+		"""
+
 		chunks = []
 		sentiments = []
 		text = self.clean_up(text)
@@ -320,20 +394,51 @@ class DataExtractor:
 		return (chunks, sentiments)
 
 	def ngrams(self,text,n=2):
+		"""
+		Returns a list of ngrams for given text.
+		
+		"""
 		return [" ".join(w) for w in TextBlob(text).ngrams(n=n)]
 
 	def noun_phrases(self, text):
+		"""
+		Returns list of TextBlob-derived noun phrases.
+		
+		"""
+
 		return TextBlob(text).noun_phrases
 
 	def common_words(self,text):
+		"""
+		Given a text, splits it into words and returns as a list after excluding stop words.
+		
+		"""
+
 		return [word for word in list(TextBlob(text).words) if word not in stopwords and word.isalpha()]
 
 	def total_word_count(self, text):
+		"""
+		Returns total word count of a given text.
+		
+		"""
+
 		return len(list(TextBlob(text).words))
 
 	def unique_word_count(self, text):
+		"""
+		Returns unique word count of a given text.
+		
+		"""
+
 		return len(set(list(TextBlob(text).words)))
 
 	@staticmethod
 	def test_sentence(sentence):
+		"""
+		Prints TextBlob-derived tags for a given sentence.
+
+		For testing purposes only.
+		
+		"""
+
 		print TextBlob(sentence).tags
