@@ -1185,7 +1185,7 @@ class RedditUser:
 				tech.append({"value": Util.coalesce(level_topics).lower(), "count": count})
 
 			# Lifestyle
-			if len(level_topics)>1 and level_topics[0].lower()=="lifestyle" and level_topics[1] not in ["drugs", "religion"] and count>=self.MIN_THRESHOLD:
+			if len(level_topics)>1 and level_topics[0].lower()=="lifestyle" and level_topics[1].lower() not in ["drugs", "religion"] and count>=self.MIN_THRESHOLD:
 				lifestyle.append({"value": Util.coalesce(level_topics).lower(), "count": count})
 
 			# Others
