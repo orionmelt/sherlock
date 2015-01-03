@@ -29,7 +29,7 @@ class Util:
 		
 		"""
 
-		_text = " ".join([l for l in text.split("\n") if not l.startswith("&gt;")])
+		_text = " ".join([l for l in text.strip().split("\n") if not l.strip().startswith("&gt;")])
 		substitutions = [
 			(r"\[(.*?)\]\((.*?)\)", r""), 	# Remove links from Markdown
 			(r"[\"](.*?)[\"]", r""), 		# Remove text within quotes
@@ -170,6 +170,9 @@ class RedditUser:
 	username=None
 	comments = []
 	submissions = []
+	reddit_id = None
+	is_mod = False
+
 
 	# About
 	signup_date = None
@@ -268,7 +271,13 @@ class RedditUser:
 	def __init__(self,username):
 		# Populate username and about data
 		self.username = username
-		self.signup_date, self.link_karma, self.comment_karma = self.get_about()
+		about = self.get_about()
+		self.username = about["name"]
+		self.signup_date = about["created_utc"]
+		self.link_karma = about["link_karma"]
+		self.comment_karma = about["comment_karma"]
+		self.reddit_id = about["reddit_id"]
+		self.is_mod = about["is_mod"]
 
 		# Retrieve comments and submissions
 		self.comments = self.get_comments()
@@ -308,7 +317,17 @@ class RedditUser:
 		url = r"http://www.reddit.com/user/%s/about.json" % self.username
 		response = requests.get(url,headers=self.HEADERS)
 		response_json = response.json()
-		return (datetime.datetime.fromtimestamp(response_json["data"]["created_utc"],tz=pytz.utc),response_json["data"]["link_karma"],response_json["data"]["comment_karma"])
+		about = {
+			"created_utc": datetime.datetime.fromtimestamp(response_json["data"]["created_utc"],tz=pytz.utc),
+			"link_karma": response_json["data"]["link_karma"],
+			"comment_karma": response_json["data"]["comment_karma"],
+			"name": response_json["data"]["name"],
+			"reddit_id": response_json["data"]["id"],
+			"is_mod": response_json["data"]["is_mod"]
+		}
+
+		#return (datetime.datetime.fromtimestamp(response_json["data"]["created_utc"],tz=pytz.utc),response_json["data"]["link_karma"],response_json["data"]["comment_karma"])
+		return about
 
 
 	def get_comments(self,limit=None):
@@ -359,7 +378,7 @@ class RedditUser:
 
 			if after:
 				url = base_url + "&after=%s" % after
-				#time.sleep(2) # Reddit may rate limit if we don't wait for 2 seconds between successive requests. If that happens, uncomment this line.
+				#time.sleep(0.5) # Reddit may rate limit if we don't wait for 2 seconds between successive requests. If that happens, increase sleep time.
 			else:
 				more_comments = False
 
@@ -416,7 +435,7 @@ class RedditUser:
 
 			if after:
 				url = base_url + "&after=%s" % after
-				#time.sleep(2) # Reddit may rate limit if we don't wait for 2 seconds between successive requests. If that happens, uncomment this line.
+				#time.sleep(0.5) # Reddit may rate limit if we don't wait for 2 seconds between successive requests. If that happens, increase sleep time.
 			else:
 				more_submissions = False
 
