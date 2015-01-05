@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-import csv, datetime, re, requests, json, time, sys, pytz
+import csv, datetime, re, requests, json, time, sys, pytz, calendar
 from collections import Counter
 from itertools import groupby
 from urlparse import urlparse
@@ -54,7 +54,7 @@ class Util:
 		return next(iter(l[::-1]), "")
 
 	@staticmethod
-	def readable_days(days):
+	def humanize_days(days):
 		"""
 		Return text with years, months and days given number of days.
 		
@@ -154,9 +154,9 @@ class RedditUser:
 	
 	"""
 
-
 	# Constants
 	MIN_THRESHOLD = 3 # If user has posted in a sub 3 times or more, they are probably interested in the topic.
+	MIN_THRESHOLD_FOR_DEFAULT = 10
 	HEADERS = {
 	    'User-Agent': 'Sherlock v0.1 by /u/orionmelt'
 	}
@@ -174,11 +174,11 @@ class RedditUser:
 	is_mod = False
 
 
-	# About
+	# Summary
 	signup_date = None
 	first_post_date = None
-	signup_date_text = None
-	first_post_date_text = None
+	signup_date_humanized = None
+	first_post_date_humanized = None
 	link_karma = 0
 	comment_karma = 0
 
@@ -194,67 +194,66 @@ class RedditUser:
 	best_submission = None
 	worst_submission = None
 
+	# Metrics
 	metrics = {
 		"date": [],
 		"weekday": [],
 		"hour": [],
 		"subreddit": [],
-		"submissions": {
-			"name": "All",
-			"children": [
-				{"name": "Self", "children":[]},
-				{"name": "Image", "children":[]},
-				{"name": "Video", "children":[]},
-				{"name": "Other", "children":[]}
-			]
-		}
 	}
 
-	_genders = []
-	_orientations = []
-	_relationship_partners = []
+	submissions_by_type = {
+		"name": "All",
+		"children": [
+			{"name": "Self", "children":[]},
+			{"name": "Image", "children":[]},
+			{"name": "Video", "children":[]},
+			{"name": "Other", "children":[]}
+		]
+	}
+
+	# Attributes - lists of (value, source post) tuples
+
+	genders = []
+	orientations = []
+	relationship_partners = []
+
+	# Data that we are reasonably sure that *are* names of places.
+	places_lived = []
+
+	# Data that looks like it could be a place, but we're not sure.
+	places_lived_extra = []
+
+	# Data that we are reasonably sure that *are* names of places.
+	places_grew_up = []
+
+	# Data that looks like it could be a place, but we're not sure.
+	places_grew_up_extra = []
 
 	family_members = []
 	pets = []
 
-	# Data that we are reasonably sure that *are* names of places.
-	core_places_lived = []
+	attributes = []
+	attributes_extra = []
 
-	# Data that looks like it could be a place, but we're not sure.
-	more_places_lived = []
-
-	# Data that we are reasonably sure that *are* names of places.
-	core_places_grew_up = []
-
-	# Data that looks like it could be a place, but we're not sure.
-	more_places_grew_up = []
-
-	core_attributes = []
-	more_attributes = []
-
-	core_possessions = []
-	more_possessions = []
+	possessions = []
+	possessions_extra = []
 	
-	core_actions = []
-	more_actions = []
+	actions = []
+	actions_extra = []
 
 	favorites = []
 	sentiments = []
 
 	derived_attributes = {
-		"drug": [],
 		"family_members": [],
 		"gadget": [],
 		"gender": [],
 		"location": [],
-		"nationality": [],
 		"orientation": [],
-		"pets": [],
 		"physical_characteristics": [],
 		"political_view": [],
 		"possession": [],
-		"race": [],
-		"relationship_status": [],
 		"religion": []
 	}
 
@@ -263,7 +262,7 @@ class RedditUser:
 	commented_dates = []
 	submitted_dates = []
 	
-	lurk_streak = None
+	lurk_period = None
 
 	comments_gilded = 0
 	submissions_gilded = 0
@@ -288,7 +287,7 @@ class RedditUser:
 
 		start = self.signup_date.date()
 
-		self.signup_date_text = Util.readable_days((today-start).days)
+		self.signup_date_humanized = Util.humanize_days((today-start).days)
 
 		self.metrics["date"] = [
 			{"date":(year, month), "comments": 0, "submissions": 0, "comment_karma": 0, "submission_karma": 0} \
@@ -513,7 +512,7 @@ class RedditUser:
 
 		comment_timestamp = datetime.datetime.fromtimestamp(comment.created_utc,tz=pytz.utc)
 
-		self.commented_dates.append(comment_timestamp.date())
+		self.commented_dates.append(comment_timestamp)
 		self.comments_gilded += comment.gilded
 		
 		# Update metrics
@@ -576,7 +575,7 @@ class RedditUser:
 
 		submission_timestamp = datetime.datetime.fromtimestamp(submission.created_utc,tz=pytz.utc)
 
-		self.submitted_dates.append(submission_timestamp.date())
+		self.submitted_dates.append(submission_timestamp)
 		self.submissions_gilded += submission.gilded
 
 		for i,d in enumerate(self.metrics["date"]):
@@ -616,7 +615,7 @@ class RedditUser:
 		else:
 			submission_type = "Other"
 			submission_domain = submission.domain
-		t = [x for x in self.metrics["submissions"]["children"] if x["name"]==submission_type][0]
+		t = [x for x in self.submissions_by_type["children"] if x["name"]==submission_type][0]
 		d = ([x for x in t["children"] if x["name"]==submission_domain] or [None])[0]
 		if d:
 			d["size"] += 1
@@ -673,9 +672,9 @@ class RedditUser:
 				elif family_member:
 					self.family_members.append((family_member, post.permalink))
 				elif relationship_partner:
-					self._relationship_partners.append((relationship_partner, post.permalink))
+					self.relationship_partners.append((relationship_partner, post.permalink))
 				else:
-					self.more_possessions.append((norm_nouns, post.permalink))
+					self.possessions_extra.append((norm_nouns, post.permalink))
 
 		# Is this chunk an action?
 		elif chunk["kind"] == "action" and chunk["verb_phrase"]:
@@ -714,7 +713,7 @@ class RedditUser:
 			if len(norm_verbs)==1 and "be" in norm_verbs and not prepositions and noun_phrase:
 				# Ignore gerund nouns for now
 				if "am" in verbs and any(n.endswith("ing") for n in norm_nouns):
-					self.more_attributes.append((full_noun_phrase, post.permalink))
+					self.attributes_extra.append((full_noun_phrase, post.permalink))
 					return
 
 				attribute = []
@@ -725,9 +724,9 @@ class RedditUser:
 						gender = extractor.gender(noun)
 						orientation = extractor.orientation(noun)
 					if gender:
-						self._genders.append((gender, post.permalink))
+						self.genders.append((gender, post.permalink))
 					elif orientation:
-						self._orientations.append((orientation, post.permalink))
+						self.orientations.append((orientation, post.permalink))
 					# Include only "am" phrases
 					elif "am" in verbs: 
 						attribute.append(noun)
@@ -757,30 +756,30 @@ class RedditUser:
 							any(a in attribute for a in extractor.include_attributes)
 						)
 					):
-					self.core_attributes.append((full_noun_phrase, post.permalink))
+					self.attributes.append((full_noun_phrase, post.permalink))
 				elif attribute:
-					self.more_attributes.append((full_noun_phrase, post.permalink))
+					self.attributes_extra.append((full_noun_phrase, post.permalink))
 
 			# I live(d) in ...
 			elif "live" in norm_verbs and prepositions and norm_nouns:
 				if any(p in ["in","near","by"] for p in prepositions) and proper_nouns:
-					self.core_places_lived.append((" ".join(prepositions) + " " + noun_phrase_text, post.permalink))
+					self.places_lived.append((" ".join(prepositions) + " " + noun_phrase_text, post.permalink))
 				else:
-					self.more_places_lived.append((" ".join(prepositions) + " " + noun_phrase_text, post.permalink))
+					self.places_lived_extra.append((" ".join(prepositions) + " " + noun_phrase_text, post.permalink))
 			
 			# I grew up in ...
 			elif "grow" in norm_verbs and "up" in prepositions and norm_nouns:
 				if any(p in ["in","near","by"] for p in prepositions) and proper_nouns:
-					self.core_places_grew_up.append((" ".join([p for p in prepositions if p!="up"]) + " " + noun_phrase_text, post.permalink))
+					self.places_grew_up.append((" ".join([p for p in prepositions if p!="up"]) + " " + noun_phrase_text, post.permalink))
 				else:
-					self.more_places_grew_up.append((" ".join([p for p in prepositions if p!="up"]) + " " + noun_phrase_text, post.permalink))
+					self.places_grew_up_extra.append((" ".join([p for p in prepositions if p!="up"]) + " " + noun_phrase_text, post.permalink))
 
 			elif len(norm_verbs)==1 and "prefer" in norm_verbs and norm_nouns and not determiners and not prepositions:
 				self.favorites.append((full_noun_phrase, post.permalink))
 
 			elif norm_nouns:
-				more_actions = " ".join(norm_verbs)
-				self.more_actions.append((more_actions, post.permalink))
+				actions_extra = " ".join(norm_verbs)
+				self.actions_extra.append((actions_extra, post.permalink))
 
 
 	def derive_attributes(self):
@@ -800,25 +799,29 @@ class RedditUser:
 				self.derived_attributes[subreddit["attribute"]].append(subreddit["value"])
 
 		# If someone mentions their wife, they should be male, and vice-versa (?)
-		if "wife" in [v for v,s in self._relationship_partners]:
+		if "wife" in [v for v,s in self.relationship_partners]:
 			self.derived_attributes["gender"].append("male")
-		elif "husband" in [v for v,s in self._relationship_partners]:
+		elif "husband" in [v for v,s in self.relationship_partners]:
 			self.derived_attributes["gender"].append("female")
 
 		active_dates = sorted(self.commented_dates+self.submitted_dates)
 
 		self.first_post_date = min(active_dates)
-		self.first_post_date_text = Util.readable_days((self.first_post_date-self.signup_date.date()).days)
+		self.first_post_date_humanized = Util.humanize_days((self.first_post_date-self.signup_date).days)
 		
-		active_dates += [datetime.date.today()]
+		active_dates += [datetime.datetime.now(tz=pytz.utc)]
 
 		# Find the longest period of inactivity
-		lurk_streak = max([{"duration":(d2-d1).days, "date1":d1, "date2":d2} for d1,d2 in zip(active_dates[:-1], active_dates[1:])], key=lambda x:x["duration"])
-		self.lurk_streak = {
-			"duration":Util.readable_days(lurk_streak["duration"]),
-			"date1": lurk_streak["date1"].strftime("%b %d, %Y"),
+		self.lurk_period = max([{"from":calendar.timegm(d1.utctimetuple()), "to":calendar.timegm(d2.utctimetuple()), "days":(d2-d1).days, "days_humanized":Util.humanize_days((d2-d1).days)} \
+			for d1,d2 in zip(active_dates[:-1], active_dates[1:])], key=lambda x:x["days"])
+		
+		'''
+		self.lurk_period = {
+			"duration":Util.humanize_days(lurk_streak["duration"]),
+			"from": lurk_streak["date1"].strftime("%b %d, %Y"),
 			"date2": lurk_streak["date2"].strftime("%b %d, %Y"),
 		}
+		'''
 
 
 	def commented_subreddits(self):
@@ -838,14 +841,14 @@ class RedditUser:
 
 		return [(name,count) for (name,count) in Counter([submission.subreddit for submission in self.submissions]).most_common()]
 
-
+	'''
 	def gender(self):
 		"""
 		Returns redditor's most probable gender.
 		
 		"""
 
-		if self._genders:
+		if self.genders:
 			(g,_) = Counter([g for g,_ in self._genders]).most_common(1)[0]
 			return g
 		else:
@@ -858,7 +861,7 @@ class RedditUser:
 		
 		"""
 
-		if self._orientations:
+		if self.orientations:
 			(o,_) = Counter([o for o,_ in self._orientations]).most_common(1)[0]
 			return o
 		else:
@@ -871,12 +874,13 @@ class RedditUser:
 		
 		"""
 
-		if self._relationship_partners:
-			(p,_) = Counter([p for p,_ in self._relationship_partners]).most_common(1)[0]
+		if self.relationship_partners:
+			(p,_) = Counter([p for p,_ in self.relationship_partners]).most_common(1)[0]
 			return p
 		else:
 			return None
 
+	'''
 
 	def results(self):
 		"""
@@ -1004,6 +1008,25 @@ class RedditUser:
 		
 		metrics_topic = {"name":"All", "children":[]}
 		
+		synopsis_topics = []
+		for name, count in Counter([s.subreddit for s in self.submissions] + [c.subreddit for c in self.comments]).most_common():
+			if (name in default_subs and count>=self.MIN_THRESHOLD_FOR_DEFAULT) or count>=self.MIN_THRESHOLD:
+				subreddit = ([s for s in subreddits if s["name"]==name] or [None])[0]
+				if subreddit and subreddit["ignore_topic"]!="Y":
+					topic = subreddit["topic_level1"]
+					if subreddit["topic_level2"]:
+						topic += ">"+subreddit["topic_level2"]
+					else:
+						topic += ">"+"Generic"
+					if subreddit["topic_level3"]:
+						topic += ">"+subreddit["topic_level3"]
+					else:
+						topic += ">"+"Generic"
+					synopsis_topics += [topic] * count
+				#else:
+				#	synopsis_topics += ["Other"] * count
+
+
 		topics = []
 		
 		for comment in self.comments:
@@ -1021,6 +1044,7 @@ class RedditUser:
 				topics.append(topic)
 			else:
 				topics.append("Other")
+
 		
 		for submission in self.submissions:
 			subreddit = ([s for s in subreddits if s["name"]==submission.subreddit] or [None])[0]
@@ -1057,32 +1081,46 @@ class RedditUser:
 				else:
 					child_node = {"name": level_topic, "size": count}
 					children.append(child_node)		
-
+		
 		common_words = [{"text":word, "size":count} for word, count in Counter(extractor.common_words(self.corpus)).most_common(200)]
 		total_word_count = extractor.total_word_count(self.corpus)
 		unique_word_count = extractor.unique_word_count(self.corpus)
 		hours_typed = round(total_word_count/(40.00*60.00),2) # Let's use an average of 40 WPM
 
+		gender = []
+		for value,count in Counter([value for value,source in self.genders]).most_common(1):
+			sources = [s for v,s in self.genders if v==value]
+			gender.append({"value":value, "count":count, "sources":sources})
 
-		core_places_lived = []
-		for value,count in Counter([value for value,source in self.core_places_lived]).most_common():
-			sources = [s for v,s in self.core_places_lived if v==value]
-			core_places_lived.append({"value":value, "count":count, "sources":sources})
+		orientation = []
+		for value,count in Counter([value for value,source in self.orientations]).most_common(1):
+			sources = [s for v,s in self.orientations if v==value]
+			orientation.append({"value":value, "count":count, "sources":sources})
 
-		more_places_lived = []
-		for value,count in Counter([value for value,source in self.more_places_lived]).most_common():
-			sources = [s for v,s in self.more_places_lived if v==value]
-			more_places_lived.append({"value":value, "count":count, "sources":sources})
+		relationship_partner = []
+		for value,count in Counter([value for value,source in self.relationship_partners]).most_common(1):
+			sources = [s for v,s in self.relationship_partners if v==value]
+			relationship_partner.append({"value":value, "count":count, "sources":sources})
 
-		core_places_grew_up = []
-		for value,count in Counter([value for value,source in self.core_places_grew_up]).most_common():
-			sources = [s for v,s in self.core_places_grew_up if v==value]
-			core_places_grew_up.append({"value":value, "count":count, "sources":sources})
+		places_lived = []
+		for value,count in Counter([value for value,source in self.places_lived]).most_common():
+			sources = [s for v,s in self.places_lived if v==value]
+			places_lived.append({"value":value, "count":count, "sources":sources})
 
-		more_places_grew_up = []
-		for value,count in Counter([value for value,source in self.more_places_grew_up]).most_common():
-			sources = [s for v,s in self.more_places_grew_up if v==value]
-			more_places_grew_up.append({"value":value, "count":count, "sources":sources})
+		places_lived_extra = []
+		for value,count in Counter([value for value,source in self.places_lived_extra]).most_common():
+			sources = [s for v,s in self.places_lived_extra if v==value]
+			places_lived_extra.append({"value":value, "count":count, "sources":sources})
+
+		places_grew_up = []
+		for value,count in Counter([value for value,source in self.places_grew_up]).most_common():
+			sources = [s for v,s in self.places_grew_up if v==value]
+			places_grew_up.append({"value":value, "count":count, "sources":sources})
+
+		places_grew_up_extra = []
+		for value,count in Counter([value for value,source in self.places_grew_up_extra]).most_common():
+			sources = [s for v,s in self.places_grew_up_extra if v==value]
+			places_grew_up_extra.append({"value":value, "count":count, "sources":sources})
 
 		family_members = []
 		for value,count in Counter([value for value,source in self.family_members]).most_common():
@@ -1099,225 +1137,211 @@ class RedditUser:
 			sources = [s for v,s in self.favorites if v==value]
 			favorites.append({"value":value, "count":count, "sources":sources})
 
-		core_attributes = []
-		for value,count in Counter([value for value,source in self.core_attributes]).most_common():
-			sources = [s for v,s in self.core_attributes if v==value]
-			core_attributes.append({"value":value, "count":count, "sources":sources})
+		attributes = []
+		for value,count in Counter([value for value,source in self.attributes]).most_common():
+			sources = [s for v,s in self.attributes if v==value]
+			attributes.append({"value":value, "count":count, "sources":sources})
 
-		more_attributes = []
-		for value,count in Counter([value for value,source in self.more_attributes]).most_common():
-			sources = [s for v,s in self.more_attributes if v==value]
-			more_attributes.append({"value":value, "count":count, "sources":sources})
+		attributes_extra = []
+		for value,count in Counter([value for value,source in self.attributes_extra]).most_common():
+			sources = [s for v,s in self.attributes_extra if v==value]
+			attributes_extra.append({"value":value, "count":count, "sources":sources})
 
-		core_possessions = []
-		for value,count in Counter([value for value,source in self.core_possessions]).most_common():
-			sources = [s for v,s in self.core_possessions if v==value]
-			core_possessions.append({"value":value, "count":count, "sources":sources})
+		possessions = []
+		for value,count in Counter([value for value,source in self.possessions]).most_common():
+			sources = [s for v,s in self.possessions if v==value]
+			possessions.append({"value":value, "count":count, "sources":sources})
 
-		more_possessions = []
-		for value,count in Counter([value for value,source in self.more_possessions]).most_common():
-			sources = [s for v,s in self.more_possessions if v==value]
-			more_possessions.append({"value":value, "count":count, "sources":sources})
+		possessions_extra = []
+		for value,count in Counter([value for value,source in self.possessions_extra]).most_common():
+			sources = [s for v,s in self.possessions_extra if v==value]
+			possessions_extra.append({"value":value, "count":count, "sources":sources})
 				
-		core_actions = []
-		for value,count in Counter([value for value,source in self.core_actions]).most_common():
-			sources = [s for v,s in self.core_actions if v==value]
-			core_actions.append({"value":value, "count":count, "sources":sources})
+		actions = []
+		for value,count in Counter([value for value,source in self.actions]).most_common():
+			sources = [s for v,s in self.actions if v==value]
+			actions.append({"value":value, "count":count, "sources":sources})
 
-		more_actions = []
-		for value,count in Counter([value for value,source in self.more_actions]).most_common():
-			sources = [s for v,s in self.more_actions if v==value]
-			more_actions.append({"value":value, "count":count, "sources":sources})
+		actions_extra = []
+		for value,count in Counter([value for value,source in self.actions_extra]).most_common():
+			sources = [s for v,s in self.actions_extra if v==value]
+			actions_extra.append({"value":value, "count":count, "sources":sources})
 
-		# "Interesting" attributes
-		locations = []
-		tv_shows = []
-		interests = []
-		games = []
-		sports = []
-		music = []
-		drugs = []
-		books = []
-		celebs = []
-		business = []
-		entertainment = []
-		science = []
-		tech = []
-		lifestyle = []
-		others = []
-		fringe_topics = ["anthropology", "architecture", "art", "history", "law", "news & politics", "philosophy", "psychology", "travel"]
+		synopsis = {}
+
+		if gender:
+			synopsis["gender"] = {"data": gender}
+
+		if orientation:
+			synopsis["orientation"] = {"data": orientation}
+
+		if relationship_partner:
+			synopsis["relationship_partner"] = {"data": relationship_partner}
+
+		if places_lived:
+			synopsis["places_lived"] = {"data": places_lived}
+
+		if places_lived_extra:
+			if "places_lived" in synopsis:
+				synopsis["places_lived"].update({"data_extra": places_lived_extra})
+			else:
+				synopsis["places_lived"] = {"data_extra": places_lived_extra}
+			#synopsis["places_lived"]["data_extra"] = places_lived_extra
+
+		if places_grew_up:
+			synopsis["places_grew_up"] = {"data": places_grew_up}
+
+		if places_grew_up_extra:
+			if "places_grew_up" in synopsis:
+				synopsis["places_grew_up"].update({"data_extra": places_grew_up_extra})
+			else:
+				synopsis["places_grew_up"] = {"data_extra": places_grew_up_extra}
+
+		if family_members:
+			synopsis["family_members"] = {"data": family_members}
+
+		if pets:
+			synopsis["pets"] = {"data": pets}
+
+		if favorites:
+			synopsis["favorites"] = {"data": favorites}
+
+		if attributes:
+			synopsis["attributes"] = {"data": attributes}
+
+		if attributes_extra:
+			if "attributes" in synopsis:
+				synopsis["attributes"].update({"data_extra": attributes_extra})
+			else:
+				synopsis["attributes"] = {"data_extra": attributes_extra}
+
+		if possessions:
+			synopsis["possessions"] = {"data": possessions}
+
+		if possessions_extra:
+			if "possessions" in synopsis:
+				synopsis["possessions"].update({"data_extra": possessions_extra})
+			else:
+				synopsis["possessions"] = {"data_extra": possessions_extra}
+		
+		''' Will work on actions later
+		if actions:
+			synopsis["actions"] = {"data": actions}
+
+		if actions_extra:
+			if "actions" in synopsis:
+				synopsis["actions"].update({"data_extra": actions_extra})
+			else:
+				synopsis["actions"] = {"data_extra": actions_extra}
+		'''
+
+		level1_topic_groups = ["business","entertainment", "gaming", "interests", "lifestyle", "location", "music", "science", "sports", "technology"]
+		level2_topic_groups = [
+			"tv shows", "books", "celebrities", # Entertainment
+			"religion", # Lifestyle
+		]
+		exclude_topic_groups = ["general", "drugs", "meta"]
+		topic_min_levels = {
+			"business": 2, 
+			"entertainment": 2,
+			"gaming": 2,
+			"interests": 2,
+			"lifestyle": 2,
+			"location": 3,
+			"music": 2,
+			"science": 2,
+			"sports": 2,
+			"technology": 2
+		}
 
 
-		for topic, count in Counter(topics).most_common():
-			level_topics = [x for x in topic.split(">") if x.lower()!="generic"]
+		for topic, count in Counter(synopsis_topics).most_common():
+			if count<self.MIN_THRESHOLD:
+				continue
+			level_topics = [x.lower() for x in topic.split(">") if x.lower()!="generic"]
+			key = None
+			if level_topics[0] not in exclude_topic_groups:
+				m = 2
+				if level_topics[0] in level1_topic_groups:
+					m = topic_min_levels[level_topics[0]]
+				if len(level_topics)>=m and level_topics[1] in level2_topic_groups and level_topics[1] not in exclude_topic_groups:
+					key = level_topics[1]
+				elif len(level_topics)>=m and level_topics[1] not in exclude_topic_groups:
+					key = level_topics[0]
+				elif level_topics[0] not in level1_topic_groups:
+					key = "other"
+				if key:
+					if key in synopsis:
+						synopsis[key]["data"].append({"value": Util.coalesce(level_topics).lower(), "count": count})
+					else:
+						synopsis[key] = {"data":[{"value": Util.coalesce(level_topics).lower(), "count": count}]}
 
-			# Locations
-			if len(level_topics)>1 and level_topics[0].lower()=="location" and count>=self.MIN_THRESHOLD:
-				locations.append({"value": Util.coalesce(level_topics).lower(), "count": count})
-			
-			# TV shows
-			if len(level_topics)>1 and level_topics[0].lower()=="entertainment" and level_topics[1].lower()=="tv shows" and count>=self.MIN_THRESHOLD:
-				tv_shows.append({"value": Util.coalesce(level_topics).lower(), "count": count})
+		for k in {k: v for k,v in self.derived_attributes.items() if len(v)}:
+			dd = [{"value":v, "count":1, "sources":None} for v in self.derived_attributes[k]]
+			if k in synopsis:
+				synopsis[k].update({"data_derived": dd})
+			else:
+				synopsis[k] = {"data_derived": dd}
 
-			# Interests
-			if len(level_topics)>1  and level_topics[0].lower()=="interests" and count>=self.MIN_THRESHOLD:
-				interests.append({"value": Util.coalesce(level_topics).lower(), "count": count})
-
-			# Games
-			if len(level_topics)>1 and level_topics[0].lower()=="gaming" and count>=self.MIN_THRESHOLD:
-				games.append({"value": Util.coalesce(level_topics).lower(), "count": count})
-
-			# Sports
-			if len(level_topics)>1 and level_topics[0].lower()=="sports" and count>=self.MIN_THRESHOLD:
-				sports.append({"value": Util.coalesce(level_topics).lower(), "count": count})
-
-			# Music
-			if len(level_topics)>1 and level_topics[0].lower()=="music" and count>=self.MIN_THRESHOLD:
-				music.append({"value": Util.coalesce(level_topics).lower(), "count": count})
-
-			# Drugs
-			if len(level_topics)>1 and level_topics[0].lower()=="lifestyle" and level_topics[1].lower()=="drugs" and count>=self.MIN_THRESHOLD:
-				drugs.append({"value": Util.coalesce(level_topics).lower(), "count": count})
-
-			# Books
-			if len(level_topics)>1 and level_topics[0].lower()=="entertainment" and level_topics[1].lower()=="books" and count>=self.MIN_THRESHOLD:
-				books.append({"value": Util.coalesce(level_topics).lower(), "count": count})
-
-			# Celebs
-			if len(level_topics)>1 and level_topics[0].lower()=="entertainment" and level_topics[1].lower()=="celebrities" and count>=self.MIN_THRESHOLD:
-				celebs.append({"value": Util.coalesce(level_topics).lower(), "count": count})
-
-			# Business
-			if len(level_topics)>1 and level_topics[0].lower()=="business" and count>=self.MIN_THRESHOLD:
-				business.append({"value": Util.coalesce(level_topics).lower(), "count": count})
-
-			# Other Entertainment
-			if len(level_topics)>1 and level_topics[0].lower()=="entertainment" and level_topics[1].lower() not in ["books", "celebrities", "tv shows"] and count>=self.MIN_THRESHOLD:
-				entertainment.append({"value": Util.coalesce(level_topics).lower(), "count": count})
-
-			# Science
-			if len(level_topics)>1 and level_topics[0].lower()=="science" and count>=self.MIN_THRESHOLD:
-				science.append({"value": Util.coalesce(level_topics).lower(), "count": count})
-
-			# Tech
-			if len(level_topics)>1 and level_topics[0].lower()=="technology" and count>=self.MIN_THRESHOLD:
-				tech.append({"value": Util.coalesce(level_topics).lower(), "count": count})
-
-			# Lifestyle
-			if len(level_topics)>1 and level_topics[0].lower()=="lifestyle" and level_topics[1].lower() not in ["drugs", "religion"] and count>=self.MIN_THRESHOLD:
-				lifestyle.append({"value": Util.coalesce(level_topics).lower(), "count": count})
-
-			# Others
-			if level_topics[0].lower() in fringe_topics and count>=self.MIN_THRESHOLD:
-				others.append({"value": Util.coalesce(level_topics).lower(), "count": count})
-
-
+		computed_comment_karma = sum([x["comment_karma"] for x in metrics_date])
+		computed_submission_karma = sum([x["submission_karma"] for x in metrics_date])
 
 		results = {
 			"username": self.username,
-			"about": {
-				"gender": self.gender(),
-				"orientation": self.orientation(),
-				"relationship_partner": self.relationship_partner(),
-				"places_lived": {
-					"core":core_places_lived,
-					"more":more_places_lived
+			"version": 2,
+			"summary": {
+				"signup_date": {
+					"date": calendar.timegm(self.signup_date.utctimetuple()),
+					"humanized": self.signup_date_humanized
 				},
-				"places_grew_up": {
-					"core":core_places_grew_up,
-					"more":more_places_grew_up
+				"first_post_date": {
+					"date": calendar.timegm(self.first_post_date.utctimetuple()),
+					"humanized": self.first_post_date_humanized
 				},
-				"family_members": family_members,			
-				"pets": pets,
-				"favorites": favorites,
-				"attributes": {
-					"core": core_attributes,
-					"more": more_attributes
+				"lurk_period": self.lurk_period,
+				"comments": {
+					"count": len(self.comments),
+					"gilded": self.comments_gilded,
+					"best": {
+						"text": self.best_comment.text if self.best_comment else None,
+						"permalink": self.best_comment.permalink if self.best_comment else None
+					},
+					"worst": {
+						"text": self.worst_comment.text if self.worst_comment else None,
+						"permalink": self.worst_comment.permalink if self.worst_comment else None
+					},
+					"all_time_karma": self.comment_karma,
+					"computed_karma": computed_comment_karma,
+					"average_karma": round(computed_comment_karma/(len(self.comments) or 1),2),
+					"total_word_count": total_word_count,
+					"unique_word_count": unique_word_count,
+					"hours_typed": hours_typed,
+					"karma_per_word": round(computed_comment_karma/(total_word_count*1.00),2)
 				},
-				"possessions": {
-					"core": core_possessions,
-					"more": more_possessions
-				},
-				"locations": locations,
-				"tv_shows": tv_shows,
-				"interests": interests,
-				"games": games,
-				"sports": sports,
-				"music": music,
-				"drugs": drugs,
-				"books": books,
-				"celebs": celebs,
-				"business": business,
-				"entertainment": entertainment,
-				"science": science,
-				"tech": tech,
-				"lifestyle": lifestyle,
-				"others": others,
-				"derived_attributes": {
-					"drug":Counter(self.derived_attributes["drug"]).most_common(),
-					"family_members":Counter(self.derived_attributes["family_members"]).most_common(),
-					"gadget":Counter(self.derived_attributes["gadget"]).most_common(),
-					"gender":Counter(self.derived_attributes["gender"]).most_common(1),
-					"location":Counter(self.derived_attributes["location"]).most_common(),
-					"nationality":Counter(self.derived_attributes["nationality"]).most_common(),
-					"orientation":Counter(self.derived_attributes["orientation"]).most_common(),
-					"pets":Counter(self.derived_attributes["pets"]).most_common(),
-					"physical_characteristics":Counter(self.derived_attributes["physical_characteristics"]).most_common(),
-					"political_view":Counter(self.derived_attributes["political_view"]).most_common(),
-					"possession":Counter(self.derived_attributes["possession"]).most_common(),
-					"race":Counter(self.derived_attributes["race"]).most_common(),
-					"relationship_status":Counter(self.derived_attributes["relationship_status"]).most_common(1),
-					"religion":Counter(self.derived_attributes["religion"]).most_common()
+				"submissions": {
+					"count": len(self.submissions),
+					"gilded": self.submissions_gilded,
+					"best": {
+						"title": self.best_submission.title if self.best_submission else None,
+						"permalink": self.best_submission.permalink if self.best_submission else None
+					},
+					"worst": {
+						"title": self.worst_submission.title if self.worst_submission else None,
+						"permalink": self.worst_submission.permalink if self.worst_submission else None
+					},
+					"all_time_karma": self.link_karma,
+					"computed_karma": computed_submission_karma,
+					"average_karma": round(computed_submission_karma/(len(self.submissions) or 1),2),
+					"type_domain_breakdown": self.submissions_by_type
 				}
 			},
-			"stats": {
-				"basic": {
-					"signup_date": self.signup_date.strftime("%b %d, %Y"),
-					"signup_date_text": self.signup_date_text,
-					"first_post_date": self.first_post_date.strftime("%b %d, %Y"),
-					"first_post_date_text": self.first_post_date_text,
-					"lurk_streak": self.lurk_streak,
-					"link_karma": self.link_karma,
-					"comment_karma": self.comment_karma,
-					"comments": {
-						"count": len(self.comments),
-						"gilded": self.comments_gilded,
-						"best": {
-							"text":self.best_comment.text if self.best_comment else None,
-							"permalink":self.best_comment.permalink if self.best_comment else None
-						},
-						"worst": {
-							"text":self.worst_comment.text if self.worst_comment else None,
-							"permalink":self.worst_comment.permalink if self.worst_comment else None
-						}
-					},
-					"submissions": {
-						"count": len(self.submissions),
-						"gilded": self.submissions_gilded,
-						"best": {
-							"title":self.best_submission.title if self.best_submission else None,
-							"permalink":self.best_submission.permalink if self.best_submission else None
-						},
-						"worst": {
-							"title":self.worst_submission.title if self.worst_submission else None,
-							"permalink":self.worst_submission.permalink if self.worst_submission else None
-						}
-					},
-					"words_in_posts": {
-						"total_word_count": total_word_count,
-						"unique_word_count": unique_word_count,
-						"hours_typed": hours_typed,
-						"karma_per_word": round(self.comment_karma/(total_word_count*1.00),2)
-					}
-				},
-				"metrics": {
-					"date": metrics_date,
-					"hour": metrics_hour,
-					"weekday": metrics_weekday,
-					"subreddit": metrics_subreddit,
-					"topic": metrics_topic,
-					"submissions": self.metrics["submissions"],
-				},
+			"synopsis": synopsis,
+			"metrics": {
+				"date": metrics_date,
+				"hour": metrics_hour,
+				"weekday": metrics_weekday,
+				"subreddit": metrics_subreddit,
+				"topic": metrics_topic,
 				"common_words": common_words
 			}
 		}

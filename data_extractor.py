@@ -104,10 +104,9 @@ class DataExtractor:
 								"sniper","silver","beginner","lurker","loser","number","stupider","outlier","molester","hitler",
 								"door","liquor","traitor",
 								"year","ear","liar",
-								"rapist","racist",
+								"rapist","racist","misogynist",
 								"satan","batman","veteran",
 								"hypocrite","candidate",
-								"everything","everyone",
 							]
 
 	# A select set of attributes we want to include.
@@ -124,7 +123,7 @@ class DataExtractor:
 	skip_verbs 			= ["were","think","guess","mean"]
 	skip_prepositions 	= ["that"]
 	skip_adjectives		= ["sure","glad","happy","afraid","sorry","certain"]
-	skip_nouns			= ["right","way"]
+	skip_nouns			= ["right","way","everything","everyone","lot"]
 
 	grammar = r"""
 	  _VP:	
