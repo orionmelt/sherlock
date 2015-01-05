@@ -3,7 +3,7 @@
 import csv, urllib2
 
 # Feel free to use this CSV file. If running locally, change below line to point to local file.
-file_url = "https://www.dropbox.com/s/82c1ex12h1njtpv/subreddits.csv?dl=1" 
+file_url = "https://www.dropbox.com/s/pz0d56sdk1qzeyf/subreddits_v2.csv?dl=1"
 
 subreddits=[]
 subreddits_file = urllib2.urlopen(file_url)
