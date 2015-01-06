@@ -591,7 +591,7 @@ class RedditUser:
 
 		days_ago_60 = self.today - datetime.timedelta(60)
 		if (submission_timestamp.date() - days_ago_60).days>0:
-			self.metrics["heatmap"][(submission_timestamp.date() - days_ago_60).days*24 + submission_timestamp.hour] += 1
+			self.metrics["heatmap"][((submission_timestamp.date() - days_ago_60).days-1)*24 + submission_timestamp.hour] += 1
 
 		for i,d in enumerate(self.metrics["date"]):
 			if d["date"]==(submission_timestamp.date().year, submission_timestamp.date().month):
