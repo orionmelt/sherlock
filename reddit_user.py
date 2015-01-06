@@ -172,6 +172,8 @@ class RedditUser:
 	submissions = []
 	reddit_id = None
 	is_mod = False
+	age_in_days = 0
+	today = None
 
 
 	# Summary
@@ -200,6 +202,7 @@ class RedditUser:
 		"weekday": [],
 		"hour": [],
 		"subreddit": [],
+		"heatmap": []
 	}
 
 	submissions_by_type = {
@@ -283,17 +286,21 @@ class RedditUser:
 		self.submissions = self.get_submissions()
 
 		# Initialize other properties
-		today = datetime.datetime.now(tz=pytz.utc).date()
+		self.today = datetime.datetime.now(tz=pytz.utc).date()
 
 		start = self.signup_date.date()
 
-		self.signup_date_humanized = Util.humanize_days((today-start).days)
+		self.signup_date_humanized = Util.humanize_days((self.today-start).days)
+
+		self.age_in_days = (self.today-start).days
 
 		self.metrics["date"] = [
 			{"date":(year, month), "comments": 0, "submissions": 0, "comment_karma": 0, "submission_karma": 0} \
-			for (year, month) in sorted(list(set([((today-datetime.timedelta(days=x)).year,(today-datetime.timedelta(days=x)).month) \
-			for x in range(0,(today-start).days)])))
+			for (year, month) in sorted(list(set([((self.today-datetime.timedelta(days=x)).year,(self.today-datetime.timedelta(days=x)).month) \
+			for x in range(0,(self.today-start).days)])))
 		]
+
+		self.metrics["heatmap"] = [0] * 24 * 60
 		
 		self.metrics["hour"] = [
 			{"hour": hour, "comments": 0, "submissions": 0, "comment_karma": 0, "submission_karma": 0} for hour in range(0,24)
@@ -514,6 +521,10 @@ class RedditUser:
 
 		self.commented_dates.append(comment_timestamp)
 		self.comments_gilded += comment.gilded
+
+		days_ago_60 = self.today - datetime.timedelta(59)
+		if (comment_timestamp.date() - days_ago_60).days>0:
+			self.metrics["heatmap"][(comment_timestamp.date() - days_ago_60).days*24 + comment_timestamp.hour] += 1
 		
 		# Update metrics
 		for i,d in enumerate(self.metrics["date"]):
@@ -577,6 +588,10 @@ class RedditUser:
 
 		self.submitted_dates.append(submission_timestamp)
 		self.submissions_gilded += submission.gilded
+
+		days_ago_60 = self.today - datetime.timedelta(60)
+		if (submission_timestamp.date() - days_ago_60).days>0:
+			self.metrics["heatmap"][(submission_timestamp.date() - days_ago_60).days*24 + submission_timestamp.hour] += 1
 
 		for i,d in enumerate(self.metrics["date"]):
 			if d["date"]==(submission_timestamp.date().year, submission_timestamp.date().month):
@@ -1286,9 +1301,18 @@ class RedditUser:
 		computed_comment_karma = sum([x["comment_karma"] for x in metrics_date])
 		computed_submission_karma = sum([x["submission_karma"] for x in metrics_date])
 
+		hmin = min(self.metrics["heatmap"])*1.0
+		hmax = max(self.metrics["heatmap"])*1.0
+		heatmap = ''.join([str(int(((h-hmin)/(hmax-hmin))*9)) for h in self.metrics["heatmap"]])
+
 		results = {
 			"username": self.username,
-			"version": 2,
+			"version": 3,
+			"metadata": {
+				"reddit_id":self.reddit_id,
+				"latest_comment_id": self.latest_comment.id if self.latest_comment else None,
+				"latest_submission_id": self.latest_submission.id if self.latest_submission else None
+			},
 			"summary": {
 				"signup_date": {
 					"date": calendar.timegm(self.signup_date.utctimetuple()),
@@ -1342,7 +1366,8 @@ class RedditUser:
 				"weekday": metrics_weekday,
 				"subreddit": metrics_subreddit,
 				"topic": metrics_topic,
-				"common_words": common_words
+				"common_words": common_words,
+				"activity_heatmap": heatmap
 			}
 		}
 
