@@ -168,6 +168,7 @@ class RedditUser:
 
 	# Basics
 	username=None
+	about = None
 	comments = []
 	submissions = []
 	reddit_id = None
@@ -270,20 +271,64 @@ class RedditUser:
 	comments_gilded = 0
 	submissions_gilded = 0
 	
-	def __init__(self,username):
+	def __init__(self,username,json_data=None):
 		# Populate username and about data
 		self.username = username
-		about = self.get_about()
-		self.username = about["name"]
-		self.signup_date = about["created_utc"]
-		self.link_karma = about["link_karma"]
-		self.comment_karma = about["comment_karma"]
-		self.reddit_id = about["reddit_id"]
-		self.is_mod = about["is_mod"]
 
-		# Retrieve comments and submissions
-		self.comments = self.get_comments()
-		self.submissions = self.get_submissions()
+		if not json_data:
+			# Retrieve about
+			self.about = self.get_about()
+			# Retrieve comments and submissions
+			self.comments = self.get_comments()
+			self.submissions = self.get_submissions()
+		else:
+			data = json.loads(json_data)
+			self.about = {
+				"created_utc": datetime.datetime.fromtimestamp(data["about"]["created_utc"],tz=pytz.utc),
+				"link_karma": data["about"]["link_karma"],
+				"comment_karma": data["about"]["comment_karma"],
+				"name": data["about"]["name"],
+				"reddit_id": data["about"]["id"],
+				"is_mod": data["about"]["is_mod"]
+			}
+			for c in data["comments"]:
+				self.comments.append(
+					Comment(
+						id=c["id"],
+						subreddit=c["subreddit"],
+						text=c["text"],
+						created_utc=c["created_utc"],
+						score=c["score"],
+						permalink=c["permalink"],
+						submission_id=c["submission_id"],
+						edited=c["edited"],
+						top_level=c["top_level"],
+						gilded=c["gilded"]
+					)
+				)
+			for s in data["submissions"]:
+				self.submissions.append(
+					Submission(
+						id=s["id"],
+						subreddit=s["subreddit"],
+						text=s["text"],
+						created_utc=s["created_utc"],
+						score=s["score"],
+						permalink=s["permalink"],
+						url=s["url"],
+						title=s["title"],
+						is_self=s["is_self"],
+						gilded=s["gilded"],
+						domain=s["domain"]
+					)
+				)
+
+		self.username = self.about["name"]
+		self.signup_date = self.about["created_utc"]
+		self.link_karma = self.about["link_karma"]
+		self.comment_karma = self.about["comment_karma"]
+		self.reddit_id = self.about["reddit_id"]
+		self.is_mod = self.about["is_mod"]
 
 		# Initialize other properties
 		self.today = datetime.datetime.now(tz=pytz.utc).date()
@@ -300,7 +345,7 @@ class RedditUser:
 			for x in range(0,(self.today-start).days)])))
 		]
 
-		self.metrics["heatmap"] = [0] * 24 * 60
+		self.metrics["heatmap"] = [0] * 24 * 61
 		
 		self.metrics["hour"] = [
 			{"hour": hour, "comments": 0, "submissions": 0, "comment_karma": 0, "submission_karma": 0} for hour in range(0,24)
@@ -355,7 +400,7 @@ class RedditUser:
 			
 			for child in response_json["data"]["children"]:
 				id = child["data"]["id"].encode("ascii","ignore")
-				subreddit = child["data"]["subreddit"].encode("ascii","ignore").lower()
+				subreddit = child["data"]["subreddit"].encode("ascii","ignore")#.lower()
 				text = child["data"]["body"].encode("ascii","ignore")
 				created_utc = child["data"]["created_utc"]
 				score = child["data"]["score"]
@@ -410,7 +455,7 @@ class RedditUser:
 			
 			for child in response_json["data"]["children"]:
 				id = child["data"]["id"].encode("ascii","ignore")
-				subreddit = child["data"]["subreddit"].encode("ascii","ignore").lower()
+				subreddit = child["data"]["subreddit"].encode("ascii","ignore")#.lower()
 				text = child["data"]["selftext"].encode("ascii","ignore").lower()
 				created_utc = child["data"]["created_utc"]
 				score = child["data"]["score"]
@@ -522,7 +567,7 @@ class RedditUser:
 		self.commented_dates.append(comment_timestamp)
 		self.comments_gilded += comment.gilded
 
-		days_ago_60 = self.today - datetime.timedelta(59)
+		days_ago_60 = self.today - datetime.timedelta(60)
 		if (comment_timestamp.date() - days_ago_60).days>0:
 			self.metrics["heatmap"][(comment_timestamp.date() - days_ago_60).days*24 + comment_timestamp.hour] += 1
 		
@@ -804,12 +849,12 @@ class RedditUser:
 		"""
 
 		for name,count in self.commented_subreddits():
-			subreddit = ([s for s in subreddits if s["name"]==name] or [None])[0]
+			subreddit = ([s for s in subreddits if s["name"]==name.lower()] or [None])[0]
 			if subreddit and subreddit["attribute"] and count>=self.MIN_THRESHOLD:
 				self.derived_attributes[subreddit["attribute"]].append(subreddit["value"])
 
 		for name,count in self.submitted_subreddits():
-			subreddit = ([s for s in subreddits if s["name"]==name] or [None])[0]
+			subreddit = ([s for s in subreddits if s["name"]==name.lower()] or [None])[0]
 			if subreddit and subreddit["attribute"] and count>=self.MIN_THRESHOLD:
 				self.derived_attributes[subreddit["attribute"]].append(subreddit["value"])
 
@@ -956,7 +1001,7 @@ class RedditUser:
 		
 		for (name,[comments,comment_karma]) in \
 			[(s,[sum(x) for x in zip(*[(1,r[1]) for r in group])]) for s, group in groupby(sorted([(p.subreddit,p.score) for p in self.comments], key=lambda x: x[0]),lambda x: x[0])]:
-			subreddit = ([s for s in subreddits if s["name"]==name] or [None])[0]
+			subreddit = ([s for s in subreddits if s["name"]==name.lower()] or [None])[0]
 			if subreddit:
 				topic_level1 = subreddit["topic_level1"]
 			else:
@@ -986,7 +1031,7 @@ class RedditUser:
 		
 		for (name,[submissions,submission_karma]) in \
 			[(s,[sum(x) for x in zip(*[(1,r[1]) for r in group])]) for s, group in groupby(sorted([(p.subreddit,p.score) for p in self.submissions], key=lambda x: x[0]),lambda x: x[0])]:
-			subreddit = ([s for s in subreddits if s["name"]==name] or [None])[0]
+			subreddit = ([s for s in subreddits if s["name"]==name.lower()] or [None])[0]
 			if subreddit:
 				topic_level1 = subreddit["topic_level1"]
 			else:
@@ -1026,7 +1071,7 @@ class RedditUser:
 		synopsis_topics = []
 		for name, count in Counter([s.subreddit for s in self.submissions] + [c.subreddit for c in self.comments]).most_common():
 			if (name in default_subs and count>=self.MIN_THRESHOLD_FOR_DEFAULT) or count>=self.MIN_THRESHOLD:
-				subreddit = ([s for s in subreddits if s["name"]==name] or [None])[0]
+				subreddit = ([s for s in subreddits if s["name"]==name.lower()] or [None])[0]
 				if subreddit and subreddit["ignore_topic"]!="Y":
 					topic = subreddit["topic_level1"]
 					if subreddit["topic_level2"]:
@@ -1041,11 +1086,10 @@ class RedditUser:
 				#else:
 				#	synopsis_topics += ["Other"] * count
 
-
 		topics = []
 		
 		for comment in self.comments:
-			subreddit = ([s for s in subreddits if s["name"]==comment.subreddit] or [None])[0]
+			subreddit = ([s for s in subreddits if s["name"]==comment.subreddit.lower()] or [None])[0]
 			if subreddit and subreddit["ignore_topic"]!="Y":
 				topic = subreddit["topic_level1"]
 				if subreddit["topic_level2"]:
@@ -1062,7 +1106,7 @@ class RedditUser:
 
 		
 		for submission in self.submissions:
-			subreddit = ([s for s in subreddits if s["name"]==submission.subreddit] or [None])[0]
+			subreddit = ([s for s in subreddits if s["name"]==submission.subreddit.lower()] or [None])[0]
 			if subreddit and subreddit["ignore_topic"]!="Y":
 				topic = subreddit["topic_level1"]
 				if subreddit["topic_level2"]:
@@ -1250,7 +1294,7 @@ class RedditUser:
 				synopsis["actions"] = {"data_extra": actions_extra}
 		'''
 
-		level1_topic_groups = ["business","entertainment", "gaming", "interests", "lifestyle", "location", "music", "science", "sports", "technology"]
+		level1_topic_groups = ["business","entertainment", "gaming", "interests", "lifestyle", "location", "music", "science", "sports", "technology", "news & politics"]
 		level2_topic_groups = [
 			"tv shows", "books", "celebrities", # Entertainment
 			"religion", # Lifestyle
@@ -1266,7 +1310,8 @@ class RedditUser:
 			"music": 2,
 			"science": 2,
 			"sports": 2,
-			"technology": 2
+			"technology": 2,
+			"news & politics": 2
 		}
 
 
@@ -1292,7 +1337,7 @@ class RedditUser:
 						synopsis[key] = {"data":[{"value": Util.coalesce(level_topics).lower(), "count": count}]}
 
 		for k in {k: v for k,v in self.derived_attributes.items() if len(v)}:
-			dd = [{"value":v, "count":1, "sources":None} for v in self.derived_attributes[k]]
+			dd = [{"value":v, "count":c, "sources":None} for v,c in Counter(self.derived_attributes[k]).most_common()]
 			if k in synopsis:
 				synopsis[k].update({"data_derived": dd})
 			else:
@@ -1303,7 +1348,7 @@ class RedditUser:
 
 		hmin = min(self.metrics["heatmap"])*1.0
 		hmax = max(self.metrics["heatmap"])*1.0
-		heatmap = ''.join([str(int(((h-hmin)/(hmax-hmin))*9)) for h in self.metrics["heatmap"]])
+		heatmap = ''.join([str(int(((h-hmin)/((hmax-hmin) or 1))*9)) for h in self.metrics["heatmap"]])
 
 		results = {
 			"username": self.username,
@@ -1340,7 +1385,7 @@ class RedditUser:
 					"total_word_count": total_word_count,
 					"unique_word_count": unique_word_count,
 					"hours_typed": hours_typed,
-					"karma_per_word": round(computed_comment_karma/(total_word_count*1.00),2)
+					"karma_per_word": round(computed_comment_karma/(total_word_count*1.00 or 1),2)
 				},
 				"submissions": {
 					"count": len(self.submissions),
