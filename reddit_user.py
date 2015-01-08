@@ -257,7 +257,7 @@ class RedditUser:
 		"orientation": [],
 		"physical_characteristics": [],
 		"political_view": [],
-		"possession": [],
+		"possessions": [],
 		"religion": []
 	}
 
