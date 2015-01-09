@@ -431,6 +431,14 @@ class DataExtractor:
 
 		return len(set(list(TextBlob(text).words)))
 
+	def longest_word(self, text):
+		"""
+		Returns longest word in a given text.
+		
+		"""
+
+		return max((list(TextBlob(text).words)), key=len)
+
 	@staticmethod
 	def test_sentence(sentence):
 		"""
