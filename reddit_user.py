@@ -73,6 +73,14 @@ class Util:
 			dd+="s"
 		return (yy+" "+mm+" "+dd).strip()
 
+	@staticmethod
+	def scale(val, src, dst):
+		"""
+		Scale the given value from the scale of src to the scale of dst.
+		"""
+		return ((val - src[0]) / (src[1]-src[0])) * (dst[1]-dst[0]) + dst[0]
+
+
 
 # Base class for comments and submissions
 class Post(object):
@@ -203,7 +211,9 @@ class RedditUser:
 		"weekday": [],
 		"hour": [],
 		"subreddit": [],
-		"heatmap": []
+		"heatmap": [],
+		"recent_karma": [],
+		"recent_posts": []
 	}
 
 	submissions_by_type = {
@@ -346,6 +356,8 @@ class RedditUser:
 		]
 
 		self.metrics["heatmap"] = [0] * 24 * 61
+		self.metrics["recent_karma"] = [0] * 61
+		self.metrics["recent_posts"] = [0] * 61
 		
 		self.metrics["hour"] = [
 			{"hour": hour, "comments": 0, "submissions": 0, "comment_karma": 0, "submission_karma": 0} for hour in range(0,24)
@@ -570,6 +582,8 @@ class RedditUser:
 		days_ago_60 = self.today - datetime.timedelta(60)
 		if (comment_timestamp.date() - days_ago_60).days>0:
 			self.metrics["heatmap"][(comment_timestamp.date() - days_ago_60).days*24 + comment_timestamp.hour] += 1
+			self.metrics["recent_karma"][(comment_timestamp.date() - days_ago_60).days] += comment.score
+			self.metrics["recent_posts"][(comment_timestamp.date() - days_ago_60).days] += 1
 		
 		# Update metrics
 		for i,d in enumerate(self.metrics["date"]):
@@ -637,6 +651,8 @@ class RedditUser:
 		days_ago_60 = self.today - datetime.timedelta(60)
 		if (submission_timestamp.date() - days_ago_60).days>0:
 			self.metrics["heatmap"][((submission_timestamp.date() - days_ago_60).days-1)*24 + submission_timestamp.hour] += 1
+			self.metrics["recent_karma"][(submission_timestamp.date() - days_ago_60).days] += submission.score
+			self.metrics["recent_posts"][(submission_timestamp.date() - days_ago_60).days] += 1
 
 		for i,d in enumerate(self.metrics["date"]):
 			if d["date"]==(submission_timestamp.date().year, submission_timestamp.date().month):
@@ -1348,7 +1364,7 @@ class RedditUser:
 
 		hmin = min(self.metrics["heatmap"])*1.0
 		hmax = max(self.metrics["heatmap"])*1.0
-		heatmap = ''.join([str(int(((h-hmin)/((hmax-hmin) or 1))*9)) for h in self.metrics["heatmap"]])
+		heatmap = ''.join([hex(int(Util.scale(h, (hmin, hmax), (1,15))))[2:] for h in self.metrics["heatmap"]])
 
 		results = {
 			"username": self.username,
@@ -1412,7 +1428,9 @@ class RedditUser:
 				"subreddit": metrics_subreddit,
 				"topic": metrics_topic,
 				"common_words": common_words,
-				"activity_heatmap": heatmap
+				"recent_activity_heatmap": heatmap,
+				"recent_karma": self.metrics["recent_karma"],
+				"recent_posts": self.metrics["recent_posts"]
 			}
 		}
 
