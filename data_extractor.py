@@ -102,6 +102,7 @@ class DataExtractor:
 								"supporter","believer","gender","backer","sucker","chapter","passenger","super","water","sitter",
 								"killer","stranger","monster","leather","holder","creeper","shower","member","wonder","hungover",
 								"sniper","silver","beginner","lurker","loser","number","stupider","outlier","molester","hitler",
+								"beer", "cucumber","earlier",
 								"door","liquor","traitor",
 								"year","ear","liar",
 								"rapist","racist","misogynist",
