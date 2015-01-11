@@ -1362,9 +1362,12 @@ class RedditUser:
 		computed_comment_karma = sum([x["comment_karma"] for x in metrics_date])
 		computed_submission_karma = sum([x["submission_karma"] for x in metrics_date])
 
-		hmin = min(self.metrics["heatmap"])*1.0 or 1.0
-		hmax = max(self.metrics["heatmap"])*1.0 or 2.0
-		heatmap = ''.join([hex(int(Util.scale(h, (hmin, hmax), (1,15))))[2:] for h in self.metrics["heatmap"]])
+		hmin = min(self.metrics["heatmap"])*1.0 or 1
+		hmax = max(self.metrics["heatmap"])*1.0
+		if hmin and hmax:
+			heatmap = ''.join([hex(int(Util.scale(h, (hmin, hmax), (1,15))))[2:] for h in self.metrics["heatmap"]])
+		else:
+			heatmap = "0" * 1464
 
 		results = {
 			"username": self.username,
