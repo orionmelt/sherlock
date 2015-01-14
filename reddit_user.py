@@ -16,6 +16,12 @@ except:
 extractor = DataExtractor()
 
 
+class UserNotFoundError(Exception):
+	pass
+
+class NoDataError(Exception):
+	pass
+
 class Util:
 	"""
 	Contains a collection of common utility methods.
@@ -79,8 +85,6 @@ class Util:
 		Scale the given value from the scale of src to the scale of dst.
 		"""
 		return ((val - src[0]) / (src[1]-src[0])) * (dst[1]-dst[0]) + dst[0]
-
-
 
 # Base class for comments and submissions
 class Post(object):
@@ -288,6 +292,8 @@ class RedditUser:
 		if not json_data:
 			# Retrieve about
 			self.about = self.get_about()
+			if not self.about:
+				raise UserNotFoundError
 			# Retrieve comments and submissions
 			self.comments = self.get_comments()
 			self.submissions = self.get_submissions()
@@ -367,6 +373,8 @@ class RedditUser:
 			{"weekday": weekday, "comments": 0, "submissions": 0, "comment_karma": 0, "submission_karma": 0} for weekday in range(0,7)
 		]
 
+		self.process()
+
 
 	def __str__(self):
 		return str(self.results())
@@ -380,6 +388,8 @@ class RedditUser:
 		url = r"http://www.reddit.com/user/%s/about.json" % self.username
 		response = requests.get(url,headers=self.HEADERS)
 		response_json = response.json()
+		if "error" in response_json and response_json["error"]==404:
+			return None
 		about = {
 			"created_utc": datetime.datetime.fromtimestamp(response_json["data"]["created_utc"],tz=pytz.utc),
 			"link_karma": response_json["data"]["link_karma"],
@@ -966,7 +976,8 @@ class RedditUser:
 
 		# Redditor has no data?
 		if not (self.comments or self.submissions):
-			return json.dumps(None)
+			raise NoDataError
+			#return json.dumps(None)
 
 		
 		# Format metrics

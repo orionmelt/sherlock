@@ -102,17 +102,17 @@ class DataExtractor:
 								"supporter","believer","gender","backer","sucker","chapter","passenger","super","water","sitter",
 								"killer","stranger","monster","leather","holder","creeper","shower","member","wonder","hungover",
 								"sniper","silver","beginner","lurker","loser","number","stupider","outlier","molester","hitler",
-								"beer", "cucumber","earlier",
+								"beer", "cucumber","earlier","denier",
 								"door","liquor","traitor",
 								"year","ear","liar",
-								"rapist","racist","misogynist",
-								"satan","batman","veteran",
+								"rapist","racist","misogynist","apologist",
+								"satan","batman","veteran","ban",
 								"hypocrite","candidate",
 							]
 
 	# A select set of attributes we want to include.
 	include_attributes = 	[
-								"geek","nerd","nurse","cook","student","consultant","mom","dad","marine","chef","sophomore","catholic",
+								"geek","nerd","nurse","cook","student","consultant","mom","dad","marine","chef","sophomore","catholic","mod",
 								#"person","enthusiast","fanboy","player","advocate", # TODO - These make sense only when accompanied by at least another noun
 							]
 
