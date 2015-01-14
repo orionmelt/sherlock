@@ -1364,8 +1364,8 @@ class RedditUser:
 
 		hmin = min(self.metrics["heatmap"])*1.0 or 1
 		hmax = max(self.metrics["heatmap"])*1.0
-		if hmin and hmax:
-			heatmap = ''.join([hex(int(Util.scale(h, (hmin, hmax), (1,15))))[2:] for h in self.metrics["heatmap"]])
+		if hmin < hmax:
+			heatmap = ''.join([hex(int(Util.scale(h, (hmin, hmax), (1,15))))[2:] if h>0 else "0" for h in self.metrics["heatmap"]])
 		else:
 			heatmap = "0" * 1464
 
