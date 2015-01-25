@@ -103,13 +103,14 @@ class TextParser:
 								"supporter","believer","gender","backer","sucker","chapter","passenger","super","water","sitter",
 								"killer","stranger","monster","leather","holder","creeper","shower","member","wonder","hungover",
 								"sniper","silver","beginner","lurker","loser","number","stupider","outlier","molester","hitler",
-								"beer", "cucumber","earlier","denier","lumber","hamster","abuser","murderer","dealer",
+								"beer", "cucumber","earlier","denier","lumber","hamster","abuser","murderer","dealer","consumer",
+								"wallpaper","paper",
 								"door","liquor","traitor","favor",
 								"year","ear","liar",
 								"rapist","racist","misogynist","apologist",
 								"satan","batman","veteran","ban",
 								"hypocrite","candidate",
-								"lot", "faggot"
+								"lot", "faggot","teapot","shot","foot","idiot",
 							]
 
 	# A select set of attributes we want to include.
@@ -257,7 +258,7 @@ class TextParser:
 
 		if noun_tree.label() != "_N":
 			return []
-		if any(n in [self.skip_nouns+stopwords] for n,t in noun_tree.leaves() if t.startswith("N")):
+		if any(n in self.skip_nouns+stopwords for n,t in noun_tree.leaves() if t.startswith("N")):
 			return []
 		noun_phrase = [(w.lower(),t) for w,t in noun_tree.leaves()]
 		return noun_phrase

@@ -1021,7 +1021,9 @@ class RedditUser:
 		
 		metrics_topic = {"name":"All", "children":[]}
 		
+		# We need both topics (for Posts across topics) and synopsis_topics (for Synopsis) because we want to include only topics that meet the threshold limits in synopsis_topics		
 		synopsis_topics = []
+
 		for name, count in Counter([s.subreddit for s in self.submissions] + [c.subreddit for c in self.comments]).most_common():
 			if (name in default_subs and count>=self.MIN_THRESHOLD_FOR_DEFAULT) or count>=self.MIN_THRESHOLD:
 				subreddit = ([s for s in subreddits if s["name"]==name.lower()] or [None])[0]
@@ -1036,8 +1038,6 @@ class RedditUser:
 					else:
 						topic += ">"+"Generic"
 					synopsis_topics += [topic] * count
-				#else:
-				#	synopsis_topics += ["Other"] * count
 
 		topics = []
 		
@@ -1056,7 +1056,6 @@ class RedditUser:
 				topics.append(topic)
 			else:
 				topics.append("Other")
-
 		
 		for submission in self.submissions:
 			subreddit = ([s for s in subreddits if s["name"]==submission.subreddit.lower()] or [None])[0]
@@ -1198,7 +1197,6 @@ class RedditUser:
 				synopsis["places_lived"].update({"data_extra": places_lived_extra})
 			else:
 				synopsis["places_lived"] = {"data_extra": places_lived_extra}
-			#synopsis["places_lived"]["data_extra"] = places_lived_extra
 
 		if places_grew_up:
 			synopsis["places_grew_up"] = {"data": places_grew_up}
@@ -1268,7 +1266,8 @@ class RedditUser:
 		}
 
 
-		for topic, count in Counter(synopsis_topics).most_common():
+		#for topic, count in Counter(synopsis_topics).most_common():
+		for topic, count in Counter(topics).most_common():
 			if count<self.MIN_THRESHOLD:
 				continue
 			level_topics = [x.lower() for x in topic.split(">") if x.lower()!="generic"]
