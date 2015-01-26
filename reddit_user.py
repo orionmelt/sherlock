@@ -388,7 +388,7 @@ class RedditUser:
 			
 			for child in response_json["data"]["children"]:
 				id = child["data"]["id"].encode("ascii","ignore")
-				subreddit = child["data"]["subreddit"].encode("ascii","ignore")#.lower()
+				subreddit = child["data"]["subreddit"].encode("ascii","ignore")
 				text = child["data"]["body"].encode("ascii","ignore")
 				created_utc = child["data"]["created_utc"]
 				score = child["data"]["score"]
@@ -443,7 +443,7 @@ class RedditUser:
 			
 			for child in response_json["data"]["children"]:
 				id = child["data"]["id"].encode("ascii","ignore")
-				subreddit = child["data"]["subreddit"].encode("ascii","ignore")#.lower()
+				subreddit = child["data"]["subreddit"].encode("ascii","ignore")
 				text = child["data"]["selftext"].encode("ascii","ignore").lower()
 				created_utc = child["data"]["created_utc"]
 				score = child["data"]["score"]
@@ -589,7 +589,7 @@ class RedditUser:
 			self.worst_comment = comment
 
 		# If comment is in a subreddit in which comments/self text are to be ignored (such as /r/jokes, /r/writingprompts, etc), do not process it further.
-		if comment.subreddit.lower() in ignore_text_subs:
+		if comment.subreddit in ignore_text_subs:
 			return False
 
 		# If comment text does not contain "I" or "my", why even bother?
@@ -683,7 +683,7 @@ class RedditUser:
 			self.worst_submission = submission
 		
 		# If submission is in a subreddit in which comments/self text are to be ignored (such as /r/jokes, /r/writingprompts, etc), do not process it further.
-		if submission.subreddit.lower() in ignore_text_subs:
+		if submission.subreddit in ignore_text_subs:
 			return False
 
 		# Only process self texts that contain "I" or "my"	
@@ -841,12 +841,12 @@ class RedditUser:
 		"""
 
 		for name,count in self.commented_subreddits():
-			subreddit = ([s for s in subreddits if s["name"]==name.lower()] or [None])[0]
+			subreddit = ([s for s in subreddits if s["name"]==name] or [None])[0]
 			if subreddit and subreddit["attribute"] and count>=self.MIN_THRESHOLD:
 				self.derived_attributes[subreddit["attribute"]].append(subreddit["value"])
 
 		for name,count in self.submitted_subreddits():
-			subreddit = ([s for s in subreddits if s["name"]==name.lower()] or [None])[0]
+			subreddit = ([s for s in subreddits if s["name"]==name] or [None])[0]
 			if subreddit and subreddit["attribute"] and count>=self.MIN_THRESHOLD:
 				self.derived_attributes[subreddit["attribute"]].append(subreddit["value"])
 
@@ -954,7 +954,7 @@ class RedditUser:
 		
 		for (name,[comments,comment_karma]) in \
 			[(s,[sum(x) for x in zip(*[(1,r[1]) for r in group])]) for s, group in groupby(sorted([(p.subreddit,p.score) for p in self.comments], key=lambda x: x[0]),lambda x: x[0])]:
-			subreddit = ([s for s in subreddits if s["name"]==name.lower()] or [None])[0]
+			subreddit = ([s for s in subreddits if s["name"]==name] or [None])[0]
 			if subreddit:
 				topic_level1 = subreddit["topic_level1"]
 			else:
@@ -984,7 +984,7 @@ class RedditUser:
 		
 		for (name,[submissions,submission_karma]) in \
 			[(s,[sum(x) for x in zip(*[(1,r[1]) for r in group])]) for s, group in groupby(sorted([(p.subreddit,p.score) for p in self.submissions], key=lambda x: x[0]),lambda x: x[0])]:
-			subreddit = ([s for s in subreddits if s["name"]==name.lower()] or [None])[0]
+			subreddit = ([s for s in subreddits if s["name"]==name] or [None])[0]
 			if subreddit:
 				topic_level1 = subreddit["topic_level1"]
 			else:
@@ -1026,7 +1026,7 @@ class RedditUser:
 
 		for name, count in Counter([s.subreddit for s in self.submissions] + [c.subreddit for c in self.comments]).most_common():
 			if (name in default_subs and count>=self.MIN_THRESHOLD_FOR_DEFAULT) or count>=self.MIN_THRESHOLD:
-				subreddit = ([s for s in subreddits if s["name"]==name.lower()] or [None])[0]
+				subreddit = ([s for s in subreddits if s["name"]==name] or [None])[0]
 				if subreddit and subreddit["ignore_topic"]!="Y":
 					topic = subreddit["topic_level1"]
 					if subreddit["topic_level2"]:
@@ -1042,7 +1042,7 @@ class RedditUser:
 		topics = []
 		
 		for comment in self.comments:
-			subreddit = ([s for s in subreddits if s["name"]==comment.subreddit.lower()] or [None])[0]
+			subreddit = ([s for s in subreddits if s["name"]==comment.subreddit] or [None])[0]
 			if subreddit and subreddit["ignore_topic"]!="Y":
 				topic = subreddit["topic_level1"]
 				if subreddit["topic_level2"]:
@@ -1058,7 +1058,7 @@ class RedditUser:
 				topics.append("Other")
 		
 		for submission in self.submissions:
-			subreddit = ([s for s in subreddits if s["name"]==submission.subreddit.lower()] or [None])[0]
+			subreddit = ([s for s in subreddits if s["name"]==submission.subreddit] or [None])[0]
 			if subreddit and subreddit["ignore_topic"]!="Y":
 				topic = subreddit["topic_level1"]
 				if subreddit["topic_level2"]:
@@ -1266,8 +1266,7 @@ class RedditUser:
 		}
 
 
-		#for topic, count in Counter(synopsis_topics).most_common():
-		for topic, count in Counter(topics).most_common():
+		for topic, count in Counter(synopsis_topics).most_common():
 			if count<self.MIN_THRESHOLD:
 				continue
 			level_topics = [x.lower() for x in topic.split(">") if x.lower()!="generic"]
