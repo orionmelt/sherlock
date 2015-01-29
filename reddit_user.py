@@ -365,7 +365,6 @@ class RedditUser:
 			"is_mod": response_json["data"]["is_mod"]
 		}
 
-		#return (datetime.datetime.fromtimestamp(response_json["data"]["created_utc"],tz=pytz.utc),response_json["data"]["link_karma"],response_json["data"]["comment_karma"])
 		return about
 
 
@@ -843,12 +842,12 @@ class RedditUser:
 		for name,count in self.commented_subreddits():
 			subreddit = ([s for s in subreddits if s["name"]==name] or [None])[0]
 			if subreddit and subreddit["attribute"] and count>=self.MIN_THRESHOLD:
-				self.derived_attributes[subreddit["attribute"]].append(subreddit["value"])
+				self.derived_attributes[subreddit["attribute"]].append(subreddit["value"].lower())
 
 		for name,count in self.submitted_subreddits():
 			subreddit = ([s for s in subreddits if s["name"]==name] or [None])[0]
 			if subreddit and subreddit["attribute"] and count>=self.MIN_THRESHOLD:
-				self.derived_attributes[subreddit["attribute"]].append(subreddit["value"])
+				self.derived_attributes[subreddit["attribute"]].append(subreddit["value"].lower())
 
 		# If someone mentions their wife, they should be male, and vice-versa (?)
 		if "wife" in [v for v,s in self.relationship_partners]:
@@ -864,7 +863,11 @@ class RedditUser:
 		active_dates += [datetime.datetime.now(tz=pytz.utc)]
 
 		# Find the longest period of inactivity
-		self.lurk_period = max([{"from":calendar.timegm(d1.utctimetuple()), "to":calendar.timegm(d2.utctimetuple()), "days":(d2-d1).days, "days_humanized":Util.humanize_days((d2-d1).days)} \
+		self.lurk_period = max([{
+			"from":calendar.timegm(d1.utctimetuple()), 
+			"to":calendar.timegm(d2.utctimetuple()), 
+			"days":(d2-d1).days, 
+			"days_humanized":Util.humanize_days((d2-d1).days)} \
 			for d1,d2 in zip(active_dates[:-1], active_dates[1:])], key=lambda x:x["days"])
 		
 		'''
@@ -953,9 +956,10 @@ class RedditUser:
 		metrics_subreddit = {"name":"All", "children":[]}
 		
 		for (name,[comments,comment_karma]) in \
-			[(s,[sum(x) for x in zip(*[(1,r[1]) for r in group])]) for s, group in groupby(sorted([(p.subreddit,p.score) for p in self.comments], key=lambda x: x[0]),lambda x: x[0])]:
+			[(s,[sum(x) for x in zip(*[(1,r[1]) for r in group])]) for s, group in groupby(sorted([(p.subreddit,p.score) \
+				for p in self.comments], key=lambda x: x[0]),lambda x: x[0])]:
 			subreddit = ([s for s in subreddits if s["name"]==name] or [None])[0]
-			if subreddit:
+			if subreddit and subreddit["topic_level1"]!="Other":
 				topic_level1 = subreddit["topic_level1"]
 			else:
 				topic_level1 = "Other"
@@ -983,9 +987,10 @@ class RedditUser:
 				}]})
 		
 		for (name,[submissions,submission_karma]) in \
-			[(s,[sum(x) for x in zip(*[(1,r[1]) for r in group])]) for s, group in groupby(sorted([(p.subreddit,p.score) for p in self.submissions], key=lambda x: x[0]),lambda x: x[0])]:
+			[(s,[sum(x) for x in zip(*[(1,r[1]) for r in group])]) for s, group in groupby(sorted([(p.subreddit,p.score) \
+				for p in self.submissions], key=lambda x: x[0]),lambda x: x[0])]:
 			subreddit = ([s for s in subreddits if s["name"]==name] or [None])[0]
-			if subreddit:
+			if subreddit and subreddit["topic_level1"]!="Other":
 				topic_level1 = subreddit["topic_level1"]
 			else:
 				topic_level1 = "Other"
@@ -1021,13 +1026,14 @@ class RedditUser:
 		
 		metrics_topic = {"name":"All", "children":[]}
 		
-		# We need both topics (for Posts across topics) and synopsis_topics (for Synopsis) because we want to include only topics that meet the threshold limits in synopsis_topics		
+		# We need both topics (for Posts across topics) and synopsis_topics (for Synopsis) 
+		# because we want to include only topics that meet the threshold limits in synopsis_topics		
 		synopsis_topics = []
 
 		for name, count in Counter([s.subreddit for s in self.submissions] + [c.subreddit for c in self.comments]).most_common():
 			if (name in default_subs and count>=self.MIN_THRESHOLD_FOR_DEFAULT) or count>=self.MIN_THRESHOLD:
 				subreddit = ([s for s in subreddits if s["name"]==name] or [None])[0]
-				if subreddit and subreddit["ignore_topic"]!="Y":
+				if subreddit:
 					topic = subreddit["topic_level1"]
 					if subreddit["topic_level2"]:
 						topic += ">"+subreddit["topic_level2"]
@@ -1043,7 +1049,7 @@ class RedditUser:
 		
 		for comment in self.comments:
 			subreddit = ([s for s in subreddits if s["name"]==comment.subreddit] or [None])[0]
-			if subreddit and subreddit["ignore_topic"]!="Y":
+			if subreddit and subreddit["topic_level1"]!="Other":
 				topic = subreddit["topic_level1"]
 				if subreddit["topic_level2"]:
 					topic += ">"+subreddit["topic_level2"]
@@ -1059,7 +1065,7 @@ class RedditUser:
 		
 		for submission in self.submissions:
 			subreddit = ([s for s in subreddits if s["name"]==submission.subreddit] or [None])[0]
-			if subreddit and subreddit["ignore_topic"]!="Y":
+			if subreddit and subreddit["topic_level1"]!="Other":
 				topic = subreddit["topic_level1"]
 				if subreddit["topic_level2"]:
 					topic += ">"+subreddit["topic_level2"]
@@ -1245,12 +1251,19 @@ class RedditUser:
 				synopsis["actions"] = {"data_extra": actions_extra}
 		'''
 
-		level1_topic_groups = ["business","entertainment", "gaming", "interests", "lifestyle", "location", "music", "science", "sports", "technology", "news & politics"]
+		level1_topic_groups = [
+			"business","entertainment", "gaming", "interests", "lifestyle", "location", "music", "science", "sports", "technology", "news & politics"
+		]
+
 		level2_topic_groups = [
 			"tv shows", "books", "celebrities", # Entertainment
 			"religion", # Lifestyle
 		]
-		exclude_topic_groups = ["general", "drugs", "meta"]
+
+		exclude_topics = ["general", "drugs", "meta", "other"]
+
+		exclude_coalesced_topics = ["religion", "more interests", "alternative"]
+
 		topic_min_levels = {
 			"business": 2, 
 			"entertainment": 2,
@@ -1271,21 +1284,22 @@ class RedditUser:
 				continue
 			level_topics = [x.lower() for x in topic.split(">") if x.lower()!="generic"]
 			key = None
-			if level_topics[0] not in exclude_topic_groups:
+			if level_topics[0] not in exclude_topics:
 				m = 2
 				if level_topics[0] in level1_topic_groups:
 					m = topic_min_levels[level_topics[0]]
-				if len(level_topics)>=m and level_topics[1] in level2_topic_groups and level_topics[1] not in exclude_topic_groups:
+				if len(level_topics)>=m and level_topics[1] in level2_topic_groups and level_topics[1] not in exclude_topics:
 					key = level_topics[1]
-				elif len(level_topics)>=m and level_topics[1] not in exclude_topic_groups:
+				elif len(level_topics)>=m and level_topics[1] not in exclude_topics:
 					key = level_topics[0]
 				elif level_topics[0] not in level1_topic_groups:
 					key = "other"
-				if key:
+				coalesced_topic = Util.coalesce(level_topics).lower()	
+				if key and coalesced_topic not in exclude_coalesced_topics:
 					if key in synopsis:
-						synopsis[key]["data"].append({"value": Util.coalesce(level_topics).lower(), "count": count})
+						synopsis[key]["data"].append({"value": coalesced_topic, "count": count})
 					else:
-						synopsis[key] = {"data":[{"value": Util.coalesce(level_topics).lower(), "count": count}]}
+						synopsis[key] = {"data":[{"value": coalesced_topic, "count": count}]}
 
 		for k in {k: v for k,v in self.derived_attributes.items() if len(v)}:
 			dd = [{"value":v, "count":c, "sources":None} for v,c in Counter(self.derived_attributes[k]).most_common()]

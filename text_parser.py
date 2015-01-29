@@ -110,7 +110,7 @@ class TextParser:
 								"rapist","racist","misogynist","apologist",
 								"satan","batman","veteran","ban",
 								"hypocrite","candidate",
-								"lot", "faggot","teapot","shot","foot","idiot",
+								"lot", "faggot","teapot","shot","foot","idiot","bigot",
 							]
 
 	# A select set of attributes we want to include.
@@ -127,7 +127,7 @@ class TextParser:
 	skip_verbs 			= ["were","think","guess","mean"]
 	skip_prepositions 	= ["that"]
 	skip_adjectives		= ["sure","glad","happy","afraid","sorry","certain"]
-	skip_nouns			= ["right","way","everything","everyone"]
+	skip_nouns			= ["right","way","everything","everyone","things","thing"]
 
 	grammar = r"""
 	  _VP:	
