@@ -45,7 +45,7 @@ VERB="v"
 ADV="r"
 ADJ="a"
 
-class DataExtractor:
+class TextParser:
 	"""
 	Utility class for processing text content.
 	"""	
@@ -82,6 +82,7 @@ class DataExtractor:
 		# Common acronyms, abbreviations and slang terms
 		(r"\birl\b", "in real life"),
 		(r"\biar\b", "in a relationship"),
+		(r"\btotes\b", "totally"),
 		(r","," and "),
 		# Remove fluff phrases
 		(r"\b(btw|by the way)\b", ""),
@@ -102,16 +103,19 @@ class DataExtractor:
 								"supporter","believer","gender","backer","sucker","chapter","passenger","super","water","sitter",
 								"killer","stranger","monster","leather","holder","creeper","shower","member","wonder","hungover",
 								"sniper","silver","beginner","lurker","loser","number","stupider","outlier","molester","hitler",
-								"door","liquor","traitor",
+								"beer", "cucumber","earlier","denier","lumber","hamster","abuser","murderer","dealer","consumer",
+								"wallpaper","paper",
+								"door","liquor","traitor","favor",
 								"year","ear","liar",
-								"rapist","racist","misogynist",
-								"satan","batman","veteran",
+								"rapist","racist","misogynist","apologist",
+								"satan","batman","veteran","ban",
 								"hypocrite","candidate",
+								"lot", "faggot","teapot","shot","foot","idiot","bigot",
 							]
 
 	# A select set of attributes we want to include.
 	include_attributes = 	[
-								"geek","nerd","nurse","cook","student","consultant","mom","dad","marine","chef","sophomore","catholic",
+								"geek","nerd","nurse","cook","student","consultant","mom","dad","marine","chef","sophomore","catholic","mod",
 								#"person","enthusiast","fanboy","player","advocate", # TODO - These make sense only when accompanied by at least another noun
 							]
 
@@ -123,7 +127,7 @@ class DataExtractor:
 	skip_verbs 			= ["were","think","guess","mean"]
 	skip_prepositions 	= ["that"]
 	skip_adjectives		= ["sure","glad","happy","afraid","sorry","certain"]
-	skip_nouns			= ["right","way","everything","everyone","lot"]
+	skip_nouns			= ["right","way","everything","everyone","things","thing"]
 
 	grammar = r"""
 	  _VP:	
@@ -254,7 +258,7 @@ class DataExtractor:
 
 		if noun_tree.label() != "_N":
 			return []
-		if any(n in self.skip_nouns for n,t in noun_tree.leaves() if t.startswith("N")):
+		if any(n in self.skip_nouns+stopwords for n,t in noun_tree.leaves() if t.startswith("N")):
 			return []
 		noun_phrase = [(w.lower(),t) for w,t in noun_tree.leaves()]
 		return noun_phrase
@@ -430,6 +434,14 @@ class DataExtractor:
 		"""
 
 		return len(set(list(TextBlob(text).words)))
+
+	def longest_word(self, text):
+		"""
+		Returns longest word in a given text.
+		
+		"""
+
+		return max((list(TextBlob(text).words)), key=len)
 
 	@staticmethod
 	def test_sentence(sentence):
