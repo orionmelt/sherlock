@@ -129,13 +129,14 @@ class TextParser:
 	skip_adjectives		= ["sure","glad","happy","afraid","sorry","certain"]
 	skip_nouns			= ["right","way","everything","everyone","things","thing"]
 
+	# Should _N include conjunctions?
 	grammar = r"""
 	  _VP:	
 	  		{<RB.*>*<V.*>+<RB.*>*}			# adverb* verb adverb* (really think / strongly suggest / look intensely)
 	  _N0:
 	  		{(<DT>*<JJ>*<NN.*>+(?!<POS>))+}
 	  _N:
-	  		{<_N0>+(<CC><_N0>)*}			# determiner adjective noun(s) (conjunction noun(s)) (a beautiful house / the strongest fighter)
+	  		{<_N0>+}						# determiner adjective noun(s) (a beautiful house / the strongest fighter)
 	  										
 	  _N_PREP_N:
 	  		{<_N>((<TO>|<IN>)<_N>)+}		# to/in noun ((newcomer) to physics / (big fan) of Queen / (newbie) in gaming )
