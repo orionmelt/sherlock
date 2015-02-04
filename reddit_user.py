@@ -5,7 +5,7 @@ from collections import Counter
 from itertools import groupby
 from urlparse import urlparse
 try:
-	from subreddits import subreddits, ignore_text_subs, default_subs
+	from subreddits import subreddits_dict, ignore_text_subs, default_subs
 except:
 	pass
 try:
@@ -840,12 +840,12 @@ class RedditUser:
 		"""
 
 		for name,count in self.commented_subreddits():
-			subreddit = ([s for s in subreddits if s["name"]==name] or [None])[0]
+			subreddit = subreddits_dict[name] if name in subreddits_dict else None
 			if subreddit and subreddit["attribute"] and count>=self.MIN_THRESHOLD:
 				self.derived_attributes[subreddit["attribute"]].append(subreddit["value"].lower())
 
 		for name,count in self.submitted_subreddits():
-			subreddit = ([s for s in subreddits if s["name"]==name] or [None])[0]
+			subreddit = subreddits_dict[name] if name in subreddits_dict else None
 			if subreddit and subreddit["attribute"] and count>=self.MIN_THRESHOLD:
 				self.derived_attributes[subreddit["attribute"]].append(subreddit["value"].lower())
 
@@ -958,7 +958,7 @@ class RedditUser:
 		for (name,[comments,comment_karma]) in \
 			[(s,[sum(x) for x in zip(*[(1,r[1]) for r in group])]) for s, group in groupby(sorted([(p.subreddit,p.score) \
 				for p in self.comments], key=lambda x: x[0]),lambda x: x[0])]:
-			subreddit = ([s for s in subreddits if s["name"]==name] or [None])[0]
+			subreddit = subreddits_dict[name] if name in subreddits_dict else None
 			if subreddit and subreddit["topic_level1"]!="Other":
 				topic_level1 = subreddit["topic_level1"]
 			else:
@@ -989,7 +989,7 @@ class RedditUser:
 		for (name,[submissions,submission_karma]) in \
 			[(s,[sum(x) for x in zip(*[(1,r[1]) for r in group])]) for s, group in groupby(sorted([(p.subreddit,p.score) \
 				for p in self.submissions], key=lambda x: x[0]),lambda x: x[0])]:
-			subreddit = ([s for s in subreddits if s["name"]==name] or [None])[0]
+			subreddit = subreddits_dict[name] if name in subreddits_dict else None
 			if subreddit and subreddit["topic_level1"]!="Other":
 				topic_level1 = subreddit["topic_level1"]
 			else:
@@ -1032,7 +1032,7 @@ class RedditUser:
 
 		for name, count in Counter([s.subreddit for s in self.submissions] + [c.subreddit for c in self.comments]).most_common():
 			if (name in default_subs and count>=self.MIN_THRESHOLD_FOR_DEFAULT) or count>=self.MIN_THRESHOLD:
-				subreddit = ([s for s in subreddits if s["name"]==name] or [None])[0]
+				subreddit = subreddits_dict[name] if name in subreddits_dict else None
 				if subreddit:
 					topic = subreddit["topic_level1"]
 					if subreddit["topic_level2"]:
@@ -1048,7 +1048,7 @@ class RedditUser:
 		topics = []
 		
 		for comment in self.comments:
-			subreddit = ([s for s in subreddits if s["name"]==comment.subreddit] or [None])[0]
+			subreddit = subreddits_dict[comment.subreddit] if comment.subreddit in subreddits_dict else None
 			if subreddit and subreddit["topic_level1"]!="Other":
 				topic = subreddit["topic_level1"]
 				if subreddit["topic_level2"]:
@@ -1064,7 +1064,7 @@ class RedditUser:
 				topics.append("Other")
 		
 		for submission in self.submissions:
-			subreddit = ([s for s in subreddits if s["name"]==submission.subreddit] or [None])[0]
+			subreddit = subreddits_dict[submission.subreddit] if submission.subreddit in subreddits_dict else None
 			if subreddit and subreddit["topic_level1"]!="Other":
 				topic = subreddit["topic_level1"]
 				if subreddit["topic_level2"]:
