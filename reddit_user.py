@@ -35,6 +35,8 @@ class Util:
 		
 		"""
 
+		MAX_WORD_LENGTH = 1024
+
 		_text = " ".join([l for l in text.strip().split("\n") if not l.strip().startswith("&gt;")])
 		substitutions = [
 			(r"\[(.*?)\]\((.*?)\)", r""), 	# Remove links from Markdown
@@ -47,6 +49,9 @@ class Util:
 		]
 		for pattern, replacement in substitutions:
 			_text = re.sub(pattern, replacement, _text, flags=re.I)
+
+		# Remove very long words
+		_text = " ".join([word for word in _text.split(" ") if len(word)<=MAX_WORD_LENGTH])
 		return _text
 
 	@staticmethod
