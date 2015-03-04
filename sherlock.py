@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 
-import sys, datetime, getopt
+import sys
+import datetime
+import getopt
+
 from reddit_user import RedditUser, UserNotFoundError, NoDataError
 
 print "Processing user %s" % sys.argv[1]
@@ -12,4 +15,5 @@ except UserNotFoundError:
     print "User %s not found" % sys.argv[1]
 except NoDataError:
     print "No data available for user %s" % sys.argv[1]
-print "Processing complete... %s" % (datetime.datetime.now()-start)
+
+print "Processing complete... %s" % (datetime.datetime.now() - start)
