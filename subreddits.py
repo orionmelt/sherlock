@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 try:
-	from sub_data import subreddits
+    from sub_data import subreddits
 except:
-	pass
+    pass
 
 subreddits_dict = dict((subreddit['name'], subreddit) for subreddit in subreddits)
 
