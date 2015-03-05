@@ -1814,12 +1814,13 @@ class RedditUser:
                 coalesced_topic = Util.coalesce(level_topics).lower()   
                 if key and coalesced_topic not in exclude_coalesced_topics:
                     if key in synopsis:
-                        synopsis[key]["data"].append(
-                            {
-                                "value" : coalesced_topic, 
-                                "count" : count
-                            }
-                        )
+                        if key not in ["gender", "religion"]:
+                            synopsis[key]["data"].append(
+                                {
+                                    "value" : coalesced_topic, 
+                                    "count" : count
+                                }
+                            )
                     else:
                         synopsis[key] = {
                             "data" : [
@@ -1838,6 +1839,8 @@ class RedditUser:
                     "sources" : None
                 } for v, c in Counter(self.derived_attributes[k]).most_common()
             ]
+            if k in ["gender", "religion"]:
+                dd = dd[:1]
             if k in synopsis:
                 synopsis[k].update(
                     {
