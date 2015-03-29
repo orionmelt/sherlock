@@ -10,7 +10,6 @@
 venv
 
 # Ignore data files
-*.csv
 data/
 results/
 

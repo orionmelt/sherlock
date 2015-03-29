@@ -14,14 +14,8 @@ from urlparse import urlparse
 import requests
 import pytz
 
-try:
-    from subreddits import subreddits_dict, ignore_text_subs, default_subs
-except:
-    pass
-try:
-    from text_parser import TextParser
-except:
-    pass
+from subreddits import subreddits_dict, ignore_text_subs, default_subs
+from text_parser import TextParser
 
 parser = TextParser()
 
@@ -396,12 +390,12 @@ class RedditUser:
             "family_members" : [],
             "gadget" : [],
             "gender" : [],
-            "location" : [],
+            "locations" : [],
             "orientation" : [],
             "physical_characteristics" : [],
             "political_view" : [],
             "possessions" : [],
-            "religion" : []
+            "religion and spirituality" : []
         }
 
         self.corpus = ""
@@ -1756,34 +1750,34 @@ class RedditUser:
         '''
 
         level1_topic_groups = [
-            "business","entertainment", "gaming", "interests", "lifestyle", 
-            "location", "music", "science", "sports", "technology", 
-            "news & politics"
+            "business","entertainment", "gaming", "hobbies and interests", "lifestyle", 
+            "locations", "music", "science", "sports", "technology", 
+            "news and politics"
         ]
 
         level2_topic_groups = [
-            "tv shows", "books", "celebrities", # Entertainment
-            "religion", # Lifestyle
+            "television", "books", "celebrities", # Entertainment
+            "religion and spirituality", # Lifestyle
         ]
 
-        exclude_topics = ["general", "drugs", "meta", "other"]
+        exclude_topics = ["general", "drugs", "meta", "adult", "other"]
 
         exclude_coalesced_topics = [
-            "religion", "more interests", "alternative"
+            "religion and spirituality", "more interests", "alternative"
         ]
 
         topic_min_levels = {
             "business" : 2, 
             "entertainment" : 2,
             "gaming" : 2,
-            "interests" : 2,
+            "hobbies and interests" : 2,
             "lifestyle" : 2,
-            "location" : 3,
+            "locations" : 3,
             "music" : 2,
             "science" : 2,
             "sports" : 2,
             "technology" : 2,
-            "news & politics" : 2
+            "news and politics" : 2
         }
 
 
@@ -1814,7 +1808,7 @@ class RedditUser:
                 coalesced_topic = Util.coalesce(level_topics).lower()   
                 if key and coalesced_topic not in exclude_coalesced_topics:
                     if key in synopsis:
-                        if key not in ["gender", "religion"]:
+                        if key not in ["gender", "religion and spirituality"]:
                             synopsis[key]["data"].append(
                                 {
                                     "value" : coalesced_topic, 
@@ -1839,7 +1833,7 @@ class RedditUser:
                     "sources" : None
                 } for v, c in Counter(self.derived_attributes[k]).most_common()
             ]
-            if k in ["gender", "religion"]:
+            if k in ["gender", "religion and spirituality"]:
                 dd = dd[:1]
             if k in synopsis:
                 synopsis[k].update(
@@ -1874,7 +1868,7 @@ class RedditUser:
 
         results = {
             "username" : self.username,
-            "version" : 3,
+            "version" : 5,
             "metadata" : {
                 "reddit_id" : self.reddit_id,
                 "latest_comment_id" : self.latest_comment.id \
