@@ -181,7 +181,10 @@ class TextParser:
     skip_verbs = ["were", "think", "guess", "mean"]
     skip_prepositions = ["that"]
     skip_adjectives = ["sure", "glad", "happy", "afraid", "sorry", "certain"]
-    skip_nouns = ["right", "way", "everything", "everyone", "things", "thing"]
+    skip_nouns = [
+        "right", "way", "everything", "everyone", "things", "thing", 
+        "mine", "stuff"
+    ]
 
     # Should _N include conjunctions?
     grammar = r"""
