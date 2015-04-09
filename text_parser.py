@@ -196,7 +196,7 @@ class TextParser:
         # determiner adjective noun(s)
         # - a beautiful house, the strongest fighter
         _N0:
-            {(<DT>*<JJ>*<NN.*>+(?!<POS>))+}
+            {(<DT>*<JJ.*>*<NN.*>+(?!<POS>))+}
         _N:
             {<_N0>+}     
 
@@ -523,7 +523,8 @@ class TextParser:
 
     def common_words(self, text):
         """
-        Given a text, splits it into words and returns as a list after excluding stop words.
+        Given a text, splits it into words and returns as a list 
+        after excluding stop words.
         
         """
 
