@@ -1807,7 +1807,7 @@ class RedditUser:
 
         topic_min_levels = {
             "business" : 2, 
-            "entertainment" : 2,
+            "entertainment" : 3,
             "gaming" : 2,
             "hobbies and interests" : 2,
             "lifestyle" : 2,
