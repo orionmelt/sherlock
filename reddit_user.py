@@ -1082,17 +1082,51 @@ class RedditUser:
         elif "husband" in [v for v, s in self.relationship_partners]:
             self.derived_attributes["gender"].append("female")
 
+        commented_dates = sorted(self.commented_dates)
+        submitted_dates = sorted(self.submitted_dates)
         active_dates = sorted(self.commented_dates + self.submitted_dates)
 
-        self.first_post_date = min(active_dates)
+        first_comment_date = min(commented_dates)
+        first_submission_date = min(submitted_dates)
+        
+
+        self.first_post_date = max(first_comment_date, first_submission_date)
         self.first_post_date_humanized = Util.humanize_days(
             (self.first_post_date - self.signup_date).days
         )
         
         active_dates += [datetime.datetime.now(tz=pytz.utc)]
+        commented_dates += [datetime.datetime.now(tz=pytz.utc)]
+        submitted_dates += [datetime.datetime.now(tz=pytz.utc)]
 
         # Find the longest period of inactivity
-        self.lurk_period = max(
+        comment_lurk_period = max(
+            [
+                {
+                    "from" : calendar.timegm(d1.utctimetuple()), 
+                    "to" : calendar.timegm(d2.utctimetuple()), 
+                    "days" : (d2 - d1).days, 
+                    "days_humanized" : Util.humanize_days((d2 - d1).days)
+                } for d1, d2 in zip(
+                    commented_dates[:-1], commented_dates[1:]
+                )
+            ], key=lambda x:x["days"]
+        )
+
+        submission_lurk_period = max(
+            [
+                {
+                    "from" : calendar.timegm(d1.utctimetuple()), 
+                    "to" : calendar.timegm(d2.utctimetuple()), 
+                    "days" : (d2 - d1).days, 
+                    "days_humanized" : Util.humanize_days((d2 - d1).days)
+                } for d1, d2 in zip(
+                    submitted_dates[:-1], submitted_dates[1:]
+                )
+            ], key=lambda x:x["days"]
+        )
+
+        post_lurk_period = max(
             [
                 {
                     "from" : calendar.timegm(d1.utctimetuple()), 
@@ -1103,6 +1137,11 @@ class RedditUser:
                     active_dates[:-1], active_dates[1:]
                 )
             ], key=lambda x:x["days"]
+        )
+
+        self.lurk_period = min(
+            [comment_lurk_period, submission_lurk_period, post_lurk_period],
+            key=lambda x:x["days"]
         )
 
 
@@ -1760,7 +1799,7 @@ class RedditUser:
             "religion and spirituality", # Lifestyle
         ]
 
-        exclude_topics = ["general", "drugs", "meta", "adult", "other"]
+        exclude_topics = ["general", "drugs", "meta", "adult and nsfw", "other"]
 
         exclude_coalesced_topics = [
             "religion and spirituality", "more interests", "alternative"
