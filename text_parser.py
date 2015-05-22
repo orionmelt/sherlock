@@ -151,13 +151,14 @@ class TextParser:
         "wonder", "hungover", "sniper", "silver", "beginner", "lurker", 
         "loser", "number", "stupider", "outlier", "molester", "hitler", "beer", 
         "cucumber", "earlier", "denier", "lumber", "hamster", "abuser", 
-        "murderer", "dealer", "consumer", "wallpaper", "paper", 
+        "murderer", "dealer", "consumer", "wallpaper", "paper", "madder", 
+        "uber", "computer", "rubber", 
         "door", "liquor", "traitor", "favor",
         "year", "ear", "liar",
-        "rapist", "racist", "misogynist", "apologist",
+        "rapist", "racist", "misogynist", "apologist", "sexist",
         "satan", "batman", "veteran", "ban",
         "hypocrite", "candidate",
-        "lot", "faggot", "teapot", "shot", "foot", "idiot", "bigot"
+        "lot", "faggot", "teapot", "shot", "foot", "idiot", "bigot", "robot"
     ]
 
     # A select set of attributes we want to include.
@@ -183,7 +184,7 @@ class TextParser:
     skip_adjectives = ["sure", "glad", "happy", "afraid", "sorry", "certain"]
     skip_nouns = [
         "right", "way", "everything", "everyone", "things", "thing", 
-        "mine", "stuff"
+        "mine", "stuff", "lot"
     ]
 
     # Should _N include conjunctions?
