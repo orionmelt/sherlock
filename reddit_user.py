@@ -1086,8 +1086,11 @@ class RedditUser:
         submitted_dates = sorted(self.submitted_dates)
         active_dates = sorted(self.commented_dates + self.submitted_dates)
 
-        first_comment_date = min(commented_dates)
-        first_submission_date = min(submitted_dates)
+        min_date = datetime.datetime(datetime.MINYEAR, 1, 1, tzinfo=pytz.utc)
+        first_comment_date = \
+            min(commented_dates) if commented_dates else min_date
+        first_submission_date = \
+            min(submitted_dates) if submitted_dates else min_date
         
 
         self.first_post_date = max(first_comment_date, first_submission_date)
@@ -1111,7 +1114,7 @@ class RedditUser:
                     commented_dates[:-1], commented_dates[1:]
                 )
             ], key=lambda x:x["days"]
-        )
+        ) if len(commented_dates) > 1 else {"days":-1}
 
         submission_lurk_period = max(
             [
@@ -1124,7 +1127,7 @@ class RedditUser:
                     submitted_dates[:-1], submitted_dates[1:]
                 )
             ], key=lambda x:x["days"]
-        )
+        ) if len(submitted_dates) > 1 else {"days":-1}
 
         post_lurk_period = max(
             [
@@ -1140,7 +1143,13 @@ class RedditUser:
         )
 
         self.lurk_period = min(
-            [comment_lurk_period, submission_lurk_period, post_lurk_period],
+            [
+                x for x in [
+                    comment_lurk_period, 
+                    submission_lurk_period, 
+                    post_lurk_period
+                ] if x["days"]>=0
+            ],
             key=lambda x:x["days"]
         )
 
