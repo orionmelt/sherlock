@@ -261,14 +261,9 @@ class RedditUser:
 
         start = self.signup_date.date()
 
-        self.signup_date_humanized = Util.humanize_days(
-            (self.today - start).days
-        )
-
         self.age_in_days = (self.today - start).days
 
         self.first_post_date = None
-        self.first_post_date_humanized = None
 
         self.earliest_comment = None
         self.latest_comment = None
@@ -1094,9 +1089,6 @@ class RedditUser:
         
 
         self.first_post_date = max(first_comment_date, first_submission_date)
-        self.first_post_date_humanized = Util.humanize_days(
-            (self.first_post_date - self.signup_date).days
-        )
         
         active_dates += [datetime.datetime.now(tz=pytz.utc)]
         commented_dates += [datetime.datetime.now(tz=pytz.utc)]
@@ -1109,7 +1101,6 @@ class RedditUser:
                     "from" : calendar.timegm(d1.utctimetuple()), 
                     "to" : calendar.timegm(d2.utctimetuple()), 
                     "days" : (d2 - d1).days, 
-                    "days_humanized" : Util.humanize_days((d2 - d1).days)
                 } for d1, d2 in zip(
                     commented_dates[:-1], commented_dates[1:]
                 )
@@ -1122,7 +1113,6 @@ class RedditUser:
                     "from" : calendar.timegm(d1.utctimetuple()), 
                     "to" : calendar.timegm(d2.utctimetuple()), 
                     "days" : (d2 - d1).days, 
-                    "days_humanized" : Util.humanize_days((d2 - d1).days)
                 } for d1, d2 in zip(
                     submitted_dates[:-1], submitted_dates[1:]
                 )
@@ -1134,8 +1124,7 @@ class RedditUser:
                 {
                     "from" : calendar.timegm(d1.utctimetuple()), 
                     "to" : calendar.timegm(d2.utctimetuple()), 
-                    "days" : (d2 - d1).days, 
-                    "days_humanized" : Util.humanize_days((d2 - d1).days)
+                    "days" : (d2 - d1).days,
                 } for d1, d2 in zip(
                     active_dates[:-1], active_dates[1:]
                 )
@@ -1152,6 +1141,7 @@ class RedditUser:
             ],
             key=lambda x:x["days"]
         )
+        del self.lurk_period["days"]
 
 
     def commented_subreddits(self):
@@ -1916,7 +1906,7 @@ class RedditUser:
 
         results = {
             "username" : self.username,
-            "version" : 5,
+            "version" : 8,
             "metadata" : {
                 "reddit_id" : self.reddit_id,
                 "latest_comment_id" : self.latest_comment.id \
@@ -1925,16 +1915,12 @@ class RedditUser:
                     if self.latest_submission else None
             },
             "summary" : {
-                "signup_date" : {
-                    "date" : calendar.timegm(self.signup_date.utctimetuple()),
-                    "humanized" : self.signup_date_humanized
-                },
-                "first_post_date" : {
-                    "date" : calendar.timegm(
+                "signup_date" : calendar.timegm(
+                        self.signup_date.utctimetuple()
+                    ),
+                "first_post_date" : calendar.timegm(
                         self.first_post_date.utctimetuple()
                     ),
-                    "humanized" : self.first_post_date_humanized
-                },
                 "lurk_period" : self.lurk_period,
                 "comments" : {
                     "count" : len(self.comments),
