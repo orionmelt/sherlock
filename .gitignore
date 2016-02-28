@@ -13,8 +13,5 @@ venv
 data/
 results/
 
-# Ignore text files
-*.txt
-
 # Ignore Blockspring files
 snoopsnoo/

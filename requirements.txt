@@ -1,0 +1,5 @@
+# This requirements file lists all third-party dependencies for this project.
+#
+# Run 'pip install -r requirements.txt' to install these dependencies.
+pytz
+textblob===0.9.0
