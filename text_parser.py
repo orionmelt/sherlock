@@ -4,6 +4,11 @@ import re
 
 from nltk import RegexpParser
 from textblob import TextBlob, Word
+from textblob.taggers import PatternTagger
+from textblob.sentiments import NaiveBayesAnalyzer
+
+pattern_tagger = PatternTagger()
+naive_bayes_analyzer = NaiveBayesAnalyzer()
 
 
 stopwords = [
@@ -453,12 +458,9 @@ class TextParser:
         chunks = []
         sentiments = []
         text = self.clean_up(text)
-        blob = TextBlob(text)
+        blob = TextBlob(text, pos_tagger=pattern_tagger, analyzer=naive_bayes_analyzer)
 
         for sentence in blob.sentences:
-            sentiments.append(
-                (sentence.sentiment.polarity, sentence.sentiment.subjectivity)
-            )
             
             if (not sentence.tags or 
                 not re.search(r"\b(i|my)\b", str(sentence),re.I)
