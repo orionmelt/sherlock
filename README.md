@@ -4,21 +4,21 @@ Sherlock
 Extract interesting information about redditors from their submissions and comments. Outputs data in JSON format.
 
 Dependencies
-============
+------------
 * [pytz](https://pypi.python.org/pypi/pytz/)
 * [TextBlob 0.9.0](http://textblob.readthedocs.org/en/dev/)
 
 Setup
-=====
+-----
 * Run `pip install -r requirements.txt` to install dependencies.
 * Run `python -m textblob.download_corpora` to download TextBlob corpora.
 
 Usage
-=====
+-----
     python sherlock.py <reddit-username>
     
 Example
-=======
+-------
 Command:
 
     python sherlock.py orionmelt
@@ -31,5 +31,5 @@ Output:
 
 
 License
-=======
+-------
 MIT License
