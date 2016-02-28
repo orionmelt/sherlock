@@ -1100,7 +1100,7 @@ class RedditUser:
                 {
                     "from" : calendar.timegm(d1.utctimetuple()), 
                     "to" : calendar.timegm(d2.utctimetuple()), 
-                    "days" : (d2 - d1).days, 
+                    "days" : (d2 - d1).seconds, 
                 } for d1, d2 in zip(
                     commented_dates[:-1], commented_dates[1:]
                 )
@@ -1112,7 +1112,7 @@ class RedditUser:
                 {
                     "from" : calendar.timegm(d1.utctimetuple()), 
                     "to" : calendar.timegm(d2.utctimetuple()), 
-                    "days" : (d2 - d1).days, 
+                    "days" : (d2 - d1).seconds, 
                 } for d1, d2 in zip(
                     submitted_dates[:-1], submitted_dates[1:]
                 )
@@ -1124,7 +1124,7 @@ class RedditUser:
                 {
                     "from" : calendar.timegm(d1.utctimetuple()), 
                     "to" : calendar.timegm(d2.utctimetuple()), 
-                    "days" : (d2 - d1).days,
+                    "days" : (d2 - d1).seconds,
                 } for d1, d2 in zip(
                     active_dates[:-1], active_dates[1:]
                 )
