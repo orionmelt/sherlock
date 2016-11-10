@@ -202,7 +202,7 @@ class TextParser:
         # determiner adjective noun(s)
         # - a beautiful house, the strongest fighter
         _N0:
-            {(<DT>*<JJ.*>*<NN.*>+(?!<POS>))+}
+            {(<DT>*<JJ.*>*<NN.*>+<JJ.*>*(?!<POS>))+}
         _N:
             {<_N0>+}     
 
