@@ -457,7 +457,7 @@ class RedditUser:
                 id = child["data"]["id"].encode("ascii", "ignore")
                 subreddit = child["data"]["subreddit"].\
                     encode("ascii", "ignore")
-                text = child["data"]["body"].encode("ascii", "ignore")
+                text = child["data"]["body"]
                 created_utc = child["data"]["created_utc"]
                 score = child["data"]["score"]
                 submission_id = child["data"]["link_id"].\
@@ -521,8 +521,7 @@ class RedditUser:
                 id = child["data"]["id"].encode("ascii","ignore")
                 subreddit = child["data"]["subreddit"].\
                     encode("ascii", "ignore")
-                text = child["data"]["selftext"].\
-                    encode("ascii", "ignore").lower()
+                text = child["data"]["selftext"]
                 created_utc = child["data"]["created_utc"]
                 score = child["data"]["score"]
                 permalink = "http://www.reddit.com" + \
@@ -825,7 +824,6 @@ class RedditUser:
         Given an extracted chunk, load appropriate attribtues from it.
 
         """
-
         # Is this chunk a possession/belonging?
         if chunk["kind"] == "possession" and chunk["noun_phrase"]:
             # Extract noun from chunk
@@ -912,7 +910,7 @@ class RedditUser:
             # TODO - Handle negative actions (such as I am not...), 
             # but for now:
             if any(
-                w in ["never", "no", "not", "nothing"] \
+                w in ["never", "no", "not", "nothing", "neither"] \
                     for w in norm_adverbs+determiners
             ):
                 return
@@ -1100,9 +1098,9 @@ class RedditUser:
                 {
                     "from" : calendar.timegm(d1.utctimetuple()), 
                     "to" : calendar.timegm(d2.utctimetuple()), 
-                    "days" : (d2 - d1).seconds, 
+                    "days" : (d2 - d1).total_seconds(), 
                 } for d1, d2 in zip(
-                    commented_dates[:-1], commented_dates[1:]
+                    commented_dates, commented_dates[1:]
                 )
             ], key=lambda x:x["days"]
         ) if len(commented_dates) > 1 else {"days":-1}
@@ -1112,9 +1110,9 @@ class RedditUser:
                 {
                     "from" : calendar.timegm(d1.utctimetuple()), 
                     "to" : calendar.timegm(d2.utctimetuple()), 
-                    "days" : (d2 - d1).seconds, 
+                    "days" : (d2 - d1).total_seconds(), 
                 } for d1, d2 in zip(
-                    submitted_dates[:-1], submitted_dates[1:]
+                    submitted_dates, submitted_dates[1:]
                 )
             ], key=lambda x:x["days"]
         ) if len(submitted_dates) > 1 else {"days":-1}
@@ -1124,9 +1122,9 @@ class RedditUser:
                 {
                     "from" : calendar.timegm(d1.utctimetuple()), 
                     "to" : calendar.timegm(d2.utctimetuple()), 
-                    "days" : (d2 - d1).seconds,
+                    "days" : (d2 - d1).total_seconds(),
                 } for d1, d2 in zip(
-                    active_dates[:-1], active_dates[1:]
+                    active_dates, active_dates[1:]
                 )
             ], key=lambda x:x["days"]
         )
