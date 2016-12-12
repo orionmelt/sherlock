@@ -9,7 +9,7 @@ import sys
 import calendar
 from collections import Counter
 from itertools import groupby
-from urlparse import urlparse
+from urllib.parse import urlparse
 
 import requests
 import pytz
@@ -41,7 +41,7 @@ class Util:
         MAX_WORD_LENGTH = 1024
 
         _text = " ".join([
-            l for l in text.strip().split("\n") if (
+            l for l in text.decode('ascii').strip().split("\n") if (
                 not l.strip().startswith("&gt;")
             )
         ])
@@ -405,10 +405,8 @@ class RedditUser:
 
         self.process()
 
-
     def __str__(self):
         return str(self.results())
-
 
     def get_about(self):
         """
@@ -526,10 +524,9 @@ class RedditUser:
                 created_utc = child["data"]["created_utc"]
                 score = child["data"]["score"]
                 permalink = "http://www.reddit.com" + \
-                    child["data"]["permalink"].\
-                    encode("ascii", "ignore").lower()
-                url = child["data"]["url"].encode("ascii", "ignore").lower()
-                title = child["data"]["title"].encode("ascii", "ignore")
+                    child["data"]["permalink"].lower()
+                url = child["data"]["url"].lower()
+                title = child["data"]["title"]
                 is_self = child["data"]["is_self"]
                 gilded = child["data"]["gilded"]
                 domain = child["data"]["domain"]
@@ -557,7 +554,7 @@ class RedditUser:
                 # reddit may rate limit if we don't wait for 2 seconds 
                 # between successive requests. If that happens, 
                 # uncomment and increase sleep time in the following line.
-                #time.sleep(0.5) 
+                time.sleep(2)
             else:
                 more_submissions = False
 
@@ -1421,7 +1418,7 @@ class RedditUser:
                 topics.append("Other")
         
         for topic, count in Counter(topics).most_common():
-            level_topics = filter(None, topic.split(">"))
+            level_topics = [_f for _f in topic.split(">") if _f]
             current_node = metrics_topic
             for i, level_topic in enumerate(level_topics):
                 children = current_node["children"]
@@ -1863,7 +1860,7 @@ class RedditUser:
                             ]
                         }
 
-        for k in {k: v for k, v in self.derived_attributes.items() if len(v)}:
+        for k in {k: v for k, v in list(self.derived_attributes.items()) if len(v)}:
             dd = [
                 {
                     "value" : v, 
@@ -1986,5 +1983,19 @@ class RedditUser:
                 "recent_posts" : self.metrics["recent_posts"]
             }
         }
-
+        bytes_to_str(results)
         return json.dumps(results)
+
+
+def bytes_to_str(d):
+    for k, v in d.items():
+        if isinstance(v, dict):
+            bytes_to_str(v)
+        elif isinstance(v, bytes):
+            d[k] = v.decode('ascii')
+        elif isinstance(v, list):
+            for d2 in v:
+                if isinstance(d2, dict):
+                    bytes_to_str(d2)
+
+
