@@ -1,4 +1,3 @@
-import praw
 import datetime
 import re
 from subreddits import subreddits_dict, ignore_text_subs, default_subs
