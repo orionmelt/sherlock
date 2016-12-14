@@ -1594,8 +1594,8 @@ class RedditUser:
             sources = [s for v, s in self.attributes if v == value]
             attributes.append(
                 {
-                    "value" : value, 
-                    "count" : count, 
+                    "value" : value,
+                    "count" : count,
                     "sources" : sources
                 }
             )
