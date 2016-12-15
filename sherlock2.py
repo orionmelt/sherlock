@@ -369,7 +369,7 @@ class AnalyzedRedditor:
 
         if submission.domain.startswith("self."):
             submission_type = "Self"
-            submission_domain = submission.subreddit_display_name
+            submission_domain = submission.subreddit.display_name
         elif (
                     submission_url_path.endswith(tuple(self.IMAGE_EXTENSIONS)) or
                     submission.domain.endswith(tuple(self.IMAGE_DOMAINS))
@@ -406,7 +406,7 @@ class AnalyzedRedditor:
         # If submission is in a subreddit in which comments/self text
         # are to be ignored (such as /r/jokes, /r/writingprompts, etc),
         # do not process it further.
-        if submission.subreddit_display_name in ignore_text_subs:
+        if submission.subreddit.display_name in ignore_text_subs:
             return False
 
         # Only process self texts that contain "I" or "my"
@@ -486,7 +486,7 @@ class AnalyzedRedditor:
         # If comment is in a subreddit in which comments/self text
         # are to be ignored (such as /r/jokes, /r/writingprompts, etc),
         # do not process it further.
-        if comment.subreddit_display_name in ignore_text_subs:
+        if comment.subreddit.display_name in ignore_text_subs:
             return False
 
         # If comment text does not contain "I" or "my", why even bother?
@@ -831,7 +831,7 @@ class AnalyzedRedditor:
 
         return [
             (name, count) for (name, count) in Counter(
-                [comment.subreddit_display_name for comment in self.comments]
+                [comment.subreddit.display_name for comment in self.comments]
             ).most_common()
             ]
 
@@ -843,7 +843,7 @@ class AnalyzedRedditor:
 
         return [
             (name, count) for (name, count) in Counter(
-                [submission.subreddit_display_name for submission in self.submissions]
+                [submission.subreddit.display_name for submission in self.submissions]
             ).most_common()
             ]
 
@@ -915,7 +915,7 @@ class AnalyzedRedditor:
             for s, group in groupby(
                 sorted(
                     [
-                        (p.subreddit_display_name, p.score) for p in self.comments
+                        (p.subreddit.display_name, p.score) for p in self.comments
                         ], key=lambda x: x[0]
                 ), lambda x: x[0]
             )
@@ -968,7 +968,7 @@ class AnalyzedRedditor:
             for s, group in groupby(
                 sorted(
                     [
-                        (p.subreddit_display_name, p.score) for p in self.submissions
+                        (p.subreddit.display_name, p.score) for p in self.submissions
                         ], key=lambda x: x[0]
                 ), lambda x: x[0]
             )
@@ -1037,8 +1037,8 @@ class AnalyzedRedditor:
         synopsis_topics = []
 
         for name, count in Counter(
-                        [s.subreddit_display_name for s in self.submissions] +
-                        [c.subreddit_display_name for c in self.comments]
+                        [s.subreddit.display_name for s in self.submissions] +
+                        [c.subreddit.display_name for c in self.comments]
         ).most_common():
             if (
                             name in default_subs and
@@ -1061,8 +1061,8 @@ class AnalyzedRedditor:
         topics = []
 
         for comment in self.comments:
-            subreddit = subreddits_dict[comment.subreddit_display_name] \
-                if comment.subreddit_display_name in subreddits_dict else None
+            subreddit = subreddits_dict[comment.subreddit.display_name] \
+                if comment.subreddit.display_name in subreddits_dict else None
             if subreddit and subreddit["topic_level1"] != "Other":
                 topic = subreddit["topic_level1"]
                 if subreddit["topic_level2"]:
@@ -1078,8 +1078,8 @@ class AnalyzedRedditor:
                 topics.append("Other")
 
         for submission in self.submissions:
-            subreddit = subreddits_dict[submission.subreddit_display_name] \
-                if submission.subreddit_display_name in subreddits_dict else None
+            subreddit = subreddits_dict[submission.subreddit.display_name] \
+                if submission.subreddit.display_name in subreddits_dict else None
             if subreddit and subreddit["topic_level1"] != "Other":
                 topic = subreddit["topic_level1"]
                 if subreddit["topic_level2"]:
@@ -1639,3 +1639,4 @@ def bytes_to_str(d):
             for d2 in v:
                 if isinstance(d2, dict):
                     bytes_to_str(d2)
+

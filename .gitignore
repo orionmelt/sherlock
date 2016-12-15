@@ -15,3 +15,5 @@ results/
 
 # Ignore Blockspring files
 snoopsnoo/
+/reddit_user.py.bak
+/sherlock.py.bak
