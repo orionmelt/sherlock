@@ -142,6 +142,10 @@ class TextParser:
         (r"\b(like|love)\b", "prefer"),
     ]
 
+    corpus_substitutions = [
+      (r"\b(cant|can't)\b", "cannot")
+    ]
+
     # Skip if any of these is the *only* attribute - for instance, 
     # "I'm a big fan of Queen" makes sense, but "I'm a fan" doesn't.
     skip_lone_attributes = [
@@ -230,14 +234,14 @@ class TextParser:
 
     chunker = RegexpParser(grammar)
 
-    def clean_up(self, text):
+    def clean_up(self, text, substitutions):
         """
         Removes unnecessary words from text and replaces common 
         misspellings/contractions with expanded words.
 
         """
 
-        for original, rep in self.substitutions:
+        for original, rep in substitutions:
             text = re.sub(original, rep, text, flags=re.I)
         return text
 
@@ -457,7 +461,7 @@ class TextParser:
 
         chunks = []
         sentiments = []
-        text = self.clean_up(text)
+        text = self.clean_up(text, self.substitutions)
         blob = TextBlob(text, pos_tagger=pattern_tagger, analyzer=naive_bayes_analyzer)
 
         for sentence in blob.sentences:
@@ -532,7 +536,7 @@ class TextParser:
         """
 
         return [
-            word for word in list(TextBlob(text).words) if (
+            word for word in TextBlob(self.clean_up(text, self.corpus_substitutions)).words if (
                 word not in stopwords and word.isalpha()
             )
         ]
