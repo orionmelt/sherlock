@@ -143,7 +143,8 @@ class TextParser:
     ]
 
     corpus_substitutions = [
-      (r"\b(cant|can't)\b", "cannot")
+      (r"\b(cant|can't)\b", "cannot"),
+      (r"(\&gt\;)", ">")
     ]
 
     # Skip if any of these is the *only* attribute - for instance, 
