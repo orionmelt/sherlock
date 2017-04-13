@@ -21,17 +21,17 @@ sub_value       - Value for the above attribute.
 subreddits_file = open("subreddits.csv","r")
 
 for (
-    name, topic_level1, topic_level2, topic_level3, 
-    default, ignore_text, sub_attribute, sub_value
+  name, topic_level1, topic_level2, topic_level3, 
+  default, ignore_text, sub_attribute, sub_value
 ) in csv.reader(subreddits_file, delimiter=',', quoting=csv.QUOTE_NONE):
-    subreddit = {
-        "name" : name,
-        "topic_level1" : topic_level1,
-        "topic_level2" : topic_level2,
-        "topic_level3" : topic_level3,
-        "default" : default,
-        "ignore_text" : ignore_text,
-        "attribute" : sub_attribute.lower(),
-        "value" : sub_value.lower()
-    }
-    subreddits.append(subreddit)
+  subreddit = {
+    "name" : name,
+    "topic_level1" : topic_level1,
+    "topic_level2" : topic_level2,
+    "topic_level3" : topic_level3,
+    "default" : default,
+    "ignore_text" : ignore_text,
+    "attribute" : sub_attribute.lower(),
+    "value" : sub_value.lower()
+  }
+  subreddits.append(subreddit)
