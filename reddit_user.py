@@ -185,7 +185,12 @@ class RedditUser:
     'User-Agent': 'Sherlock v0.1 by /u/orionmelt'
   }
 
-  IMAGE_DOMAINS = ["imgur.com", "flickr.com"]
+  IMAGE_DOMAINS = [
+    "imgur.com",
+    "flickr.com",
+    "i.reddituploads.com",
+    "images.akamai.steamusercontent.com"
+  ]
   VIDEO_DOMAINS = ["youtube.com", "youtu.be", "vimeo.com", "liveleak.com"]
   IMAGE_EXTENSIONS = ["jpg", "png", "gif", "bmp"]
 
