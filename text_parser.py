@@ -453,66 +453,60 @@ class TextParser:
       return None
 
   def extract_chunks(self, text):
-    """
-    Given a block of text, extracts and returns useful chunks.
+        """
+        Given a block of text, extracts and returns useful chunks.
+        """
+        chunks = []
+        sentiments = []
+        text = self.clean_up(text, self.substitutions)
+        
+        try:
+          blob = TextBlob(text, pos_tagger=pattern_tagger, analyzer=naive_bayes_analyzer)
+          for sentence in blob.sentences:
+              if not sentence.tags or not re.search(r"\b(i|my)\b", str(sentence), re.I):
+                  continue
 
-    TODO - Should sentiments be excluded here?
-    
-    """
+              try:
+                  tree = self.chunker.parse(sentence.tags)
+              except StopIteration:
+                  # Log the error or handle it as necessary
+                  continue
 
-    chunks = []
-    sentiments = []
-    text = self.clean_up(text, self.substitutions)
-    blob = TextBlob(text, pos_tagger=pattern_tagger, analyzer=naive_bayes_analyzer)
+              for subtree in tree.subtrees(filter=lambda t: t.label() in ['POSS', 'ACT1', 'ACT2']):
+                  phrase = [(w.lower(), t) for w, t in subtree.leaves()]
+                  phrase_type = subtree.label()
 
-    for sentence in blob.sentences:
-      
-      if (not sentence.tags or 
-        not re.search(r"\b(i|my)\b", str(sentence),re.I)
-      ):
-        continue
+                  if not self.valid_phrase(phrase, phrase_type):
+                      continue
 
-      tree = self.chunker.parse(sentence.tags)
+                  if subtree.label() == "POSS":
+                      chunk = self.process_possession(subtree)
+                      if chunk:
+                          chunks.append(chunk)
+                  elif subtree.label() in ["ACT1", "ACT2"]:
+                      chunk = self.process_action(subtree)
+                      if chunk:
+                          chunks.append(chunk)
 
-      for subtree in tree.subtrees(
-        filter=lambda t: t.label() in ['POSS', 'ACT1', 'ACT2']
-      ):
-        phrase = [(w.lower(), t) for w, t in subtree.leaves()]
-        phrase_type = subtree.label()
+        except Exception as e:
+            # Handle or log other exceptions if necessary
+            pass
 
-        if not any(
-          x in [
-            ("i", "PRP"), ("my", "PRP$")
-          ] for x in [(w, t) for w, t in phrase]
-        ) or (
+        return (chunks, sentiments)
+
+
+  def valid_phrase(self, phrase, phrase_type):
+      if not any(
+          x in [("i", "PRP"), ("my", "PRP$")] for x in phrase
+      ) or (
           phrase_type in ["ACT1", "ACT2"] and (
-            any(
-              word in self.skip_verbs for word in [
-                w for w, t in phrase if t.startswith("V")
-              ]
-            ) or any(
-              word in self.skip_prepositions for word in [
-                w for w, t in phrase if t == "IN"
-              ]
-            ) or any(
-              word in self.skip_adjectives for word in [
-                w for w, t in phrase if t == "JJ"
-              ]
-            )
+              any(word in self.skip_verbs for word in [w for w, t in phrase if t.startswith("V")]) or
+              any(word in self.skip_prepositions for word in [w for w, t in phrase if t == "IN"]) or
+              any(word in self.skip_adjectives for word in [w for w, t in phrase if t == "JJ"])
           )
-        ):
-          continue
-
-        if subtree.label() == "POSS":
-          chunk = self.process_possession(subtree)
-          if chunk:
-            chunks.append(chunk)
-        elif subtree.label() in ["ACT1", "ACT2"]:
-          chunk = self.process_action(subtree)
-          if chunk:
-            chunks.append(chunk)
-
-    return (chunks, sentiments)
+      ):
+          return False
+      return True
 
   def ngrams(self, text, n=2):
     """
@@ -575,4 +569,4 @@ class TextParser:
     
     """
 
-    print TextBlob(sentence).tags
+    print(TextBlob(sentence).tags)
