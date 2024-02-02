@@ -9,7 +9,7 @@ import sys
 import calendar
 from collections import Counter
 from itertools import groupby
-from urlparse import urlparse
+from urllib.parse import urlparse  #Updating from Python2 to Python3
 
 import requests
 import pytz
@@ -459,9 +459,8 @@ class RedditUser:
       # rate limiting (429) errors
       
       for child in response_json["data"]["children"]:
-        id = child["data"]["id"].encode("ascii", "ignore")
-        subreddit = child["data"]["subreddit"].\
-          encode("ascii", "ignore")
+        id = child["data"]["id"]
+        subreddit = child["data"]["subreddit"]
         text = child["data"]["body"]
         created_utc = child["data"]["created_utc"]
         score = child["data"]["score"]
@@ -504,68 +503,60 @@ class RedditUser:
 
 
   def get_submissions(self, limit=None):
-    """
-    Returns a list of redditor's submissions.
-    
-    """
-
     submissions = []
     more_submissions = True
     after = None
-    base_url = r"http://www.reddit.com/user/%s/submitted/.json?limit=100" \
-      % self.username
+    base_url = f"http://www.reddit.com/user/{self.username}/submitted/.json?limit=100"
     url = base_url
     while more_submissions:
-      response = requests.get(url, headers=self.HEADERS)
-      response_json = response.json()
+        response = requests.get(url, headers=self.HEADERS)
+        response_json = response.json()
 
-      # TODO - Error handling for user not found (404) and 
-      # rate limiting (429) errors
-      
-      for child in response_json["data"]["children"]:
-        id = child["data"]["id"].encode("ascii","ignore")
-        subreddit = child["data"]["subreddit"].\
-          encode("ascii", "ignore")
-        text = child["data"]["selftext"]
-        created_utc = child["data"]["created_utc"]
-        score = child["data"]["score"]
-        permalink = "http://www.reddit.com" + \
-          child["data"]["permalink"].\
-          encode("ascii", "ignore").lower()
-        url = child["data"]["url"].encode("ascii", "ignore").lower()
-        title = child["data"]["title"].encode("ascii", "ignore")
-        is_self = child["data"]["is_self"]
-        gilded = child["data"]["gilded"]
-        domain = child["data"]["domain"]
-        
-        submission = Submission(
-          id=id,
-          subreddit=subreddit,
-          text=text,
-          created_utc=created_utc,
-          score=score,
-          permalink=permalink,
-          url=url,
-          title=title,
-          is_self=is_self,
-          gilded=gilded,
-          domain=domain
-        )         
+        # TODO - Error handling for user not found (404) and 
+        # rate limiting (429) errors
 
-        submissions.append(submission)
+        for child in response_json["data"]["children"]:
+            id = child["data"]["id"]
+            subreddit = child["data"]["subreddit"]
+            text = child["data"]["selftext"]
+            created_utc = child["data"]["created_utc"]
+            score = child["data"]["score"]
+            permalink = "http://www.reddit.com" + child["data"]["permalink"]
+            url = child["data"]["url"]
+            title = child["data"]["title"]
+            is_self = child["data"]["is_self"]
+            gilded = child["data"]["gilded"]
+            domain = child["data"]["domain"]
 
-      after = response_json["data"]["after"]
+            submission = Submission(
+                id=id,
+                subreddit=subreddit,
+                text=text,
+                created_utc=created_utc,
+                score=score,
+                permalink=permalink,
+                url=url,
+                title=title,
+                is_self=is_self,
+                gilded=gilded,
+                domain=domain
+            )
 
-      if after:
-        url = base_url + "&after=%s" % after
-        # reddit may rate limit if we don't wait for 2 seconds 
-        # between successive requests. If that happens, 
-        # uncomment and increase sleep time in the following line.
-        #time.sleep(0.5) 
-      else:
-        more_submissions = False
+            submissions.append(submission)
+
+        after = response_json["data"]["after"]
+
+        if after:
+            url = base_url + "&after=" + after
+            # reddit may rate limit if we don't wait for 2 seconds 
+            # between successive requests. If that happens, 
+            # uncomment and increase sleep time in the following line.
+            # time.sleep(0.5)
+        else:
+            more_submissions = False
 
     return submissions
+
 
 
   def process(self):
@@ -1424,7 +1415,7 @@ class RedditUser:
         topics.append("Other")
     
     for topic, count in Counter(topics).most_common():
-      level_topics = filter(None, topic.split(">"))
+      level_topics = list(filter(None, topic.split(">")))
       current_node = metrics_topic
       for i, level_topic in enumerate(level_topics):
         children = current_node["children"]
